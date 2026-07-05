@@ -94,6 +94,7 @@ export const ZOOM_DEFAULTS = {
  */
 export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRecipe {
   const zoomScale = config.zoomScale ?? ZOOM_DEFAULTS.scale
+  const source = config.source
 
   const clicks = track.samples
     .filter((s): s is MouseSample => s.kind === 'down')
@@ -111,7 +112,7 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
       fullInAtMs: first.t,
       holdEndMs: last.t + ZOOM_DEFAULTS.holdAfterMs,
       endMs: last.t + ZOOM_DEFAULTS.holdAfterMs + ZOOM_DEFAULTS.rampOutMs,
-      keyframes: group.map((c) => ({ t: c.t, x: c.x, y: c.y }))
+      keyframes: panKeyframes(group, zoomScale, source)
     })
     group = []
   }
@@ -124,11 +125,32 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
   flush()
 
   return {
-    source: { width: config.source.width, height: config.source.height },
+    source: { width: source.width, height: source.height },
     zoomScale,
     durationMs: track.durationMs,
     zoomSegments
   }
+}
+
+/**
+ * 그룹 내 클릭에서 팬 키프레임만 골라낸다 (팬 연결 규칙).
+ *
+ * 첫 클릭은 항상 키프레임(줌인 중심)이다. 이후 클릭은 현재 카메라 뷰 밖에 있을 때만
+ * 팬으로 잇는다(키프레임 추가) — 줌아웃했다가 다시 줌인하는 대신 배율을 유지한 채 중심만
+ * 옮긴다. 뷰 안 클릭은 카메라를 움직이지 않으므로 키프레임을 만들지 않는다(줌 유지).
+ * 뷰 판정은 실제로 표시되는 클램핑된 중심을 기준으로 한다.
+ */
+function panKeyframes(group: MouseSample[], scale: number, source: FrameSize): PanKeyframe[] {
+  const first = group[0]
+  const keyframes: PanKeyframe[] = [{ t: first.t, x: first.x, y: first.y }]
+  let center = clampCenter(first.x, first.y, scale, source)
+  for (let i = 1; i < group.length; i++) {
+    const c = group[i]
+    if (isInsideView(center, c.x, c.y, scale, source)) continue
+    keyframes.push({ t: c.t, x: c.x, y: c.y })
+    center = clampCenter(c.x, c.y, scale, source)
+  }
+  return keyframes
 }
 
 /**
@@ -194,13 +216,34 @@ function panAt(keyframes: PanKeyframe[], t: number): { x: number; y: number } {
 
 /** 확대된 뷰가 원본 프레임을 벗어나지 않도록 중심을 가둔다(SPEC 3 가장자리 클램핑). */
 function clampCamera(scale: number, center: { x: number; y: number }, source: FrameSize): CameraTransform {
+  const c = clampCenter(center.x, center.y, scale, source)
+  return { scale, x: c.x, y: c.y }
+}
+
+/** 확대 뷰가 프레임을 벗어나지 않는 카메라 중심으로 좌표를 가둔다. */
+function clampCenter(x: number, y: number, scale: number, source: FrameSize): { x: number; y: number } {
   const halfW = source.width / scale / 2
   const halfH = source.height / scale / 2
   return {
-    scale,
-    x: clamp(center.x, halfW, source.width - halfW),
-    y: clamp(center.y, halfH, source.height - halfH)
+    x: clamp(x, halfW, source.width - halfW),
+    y: clamp(y, halfH, source.height - halfH)
   }
+}
+
+/**
+ * 클릭이 현재 카메라 뷰(배율 scale) 안에 있는지. 뷰는 center를 중심으로 source/scale 크기다.
+ * 안이면 팬하지 않고 줌을 유지한다.
+ */
+function isInsideView(
+  center: { x: number; y: number },
+  x: number,
+  y: number,
+  scale: number,
+  source: FrameSize
+): boolean {
+  const halfW = source.width / scale / 2
+  const halfH = source.height / scale / 2
+  return Math.abs(x - center.x) <= halfW && Math.abs(y - center.y) <= halfH
 }
 
 function clamp(v: number, lo: number, hi: number): number {
