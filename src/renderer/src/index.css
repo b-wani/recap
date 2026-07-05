@@ -111,6 +111,118 @@ body {
   background: black;
 }
 
+.timeline {
+  width: 100%;
+  user-select: none;
+}
+
+.tl-track {
+  position: relative;
+  height: 56px;
+  border-radius: 8px;
+  background: #2c2c2e;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* 트림 창 밖 구간 — 최종 영상에서 제외됨. */
+.tl-trimmed {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+/* 줌 구간 블록. */
+.tl-seg {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  min-width: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #0a84ff;
+  color: white;
+  font-size: 12px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.tl-seg.is-selected {
+  outline: 2px solid #f2f2f7;
+}
+
+.tl-seg-label {
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+}
+
+.tl-seg-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.tl-seg-edge-start {
+  left: 0;
+  border-radius: 6px 0 0 6px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.tl-seg-edge-end {
+  right: 0;
+  border-radius: 0 6px 6px 0;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.tl-seg-del {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #ff453a;
+  color: white;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* 트림 핸들. */
+.tl-trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  margin-left: -3px;
+  background: #ff9f0a;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.tl-help {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #8e8e93;
+}
+
+.meta-sub {
+  color: #8e8e93;
+  font-size: 12px;
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;
