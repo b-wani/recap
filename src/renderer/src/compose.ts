@@ -1,6 +1,6 @@
 /**
  * 프레임 합성 그리기 층 — 효과 계산을 하지 않는다.
- * `sampleComposition`이 낸 합성 파라미터(카메라·배경/패딩·배지)를 2D 컨텍스트에
+ * `sampleComposition`이 낸 합성 파라미터(카메라·커서·클릭·배경/패딩·배지)를 2D 컨텍스트에
  * 그대로 그리기만 한다. 미리보기(온스크린 캔버스)와 익스포트(오프스크린 캔버스)가
  * 이 한 함수를 공유하므로 두 결과물이 동일하게 나온다.
  */
@@ -10,9 +10,17 @@ import type { FrameComposition, FrameSize } from '../../shared/recipe'
 /** 온스크린·오프스크린 양쪽에서 통용되는 2D 컨텍스트. */
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
 
+/** 원본 px → 캔버스 px 매핑 — 카메라 뷰를 패딩 인셋 영역에 대응시킨다. */
+interface Mapping {
+  toCanvasX: (x: number) => number
+  toCanvasY: (y: number) => number
+  /** 캔버스 px / 원본 px (오버레이 크기 환산용). 패딩 0이면 camera.scale와 같다. */
+  drawScale: number
+}
+
 /**
  * 합성 파라미터 한 프레임을 그린다. 컨텍스트의 캔버스는 원본 크기(source)로 맞춰져 있다고 본다.
- * 순서: 배경 채우기 → 패딩 안쪽에 카메라 뷰 → (켜져 있으면) 뷰포트 크기 배지.
+ * 순서: 배경 채우기 → 패딩 안쪽에 카메라 뷰 → 클릭 하이라이트·커서 → (켜져 있으면) 배지.
  */
 export function drawComposition(
   ctx: Ctx,
@@ -20,7 +28,7 @@ export function drawComposition(
   comp: FrameComposition,
   source: FrameSize
 ): void {
-  const { camera, background, badge } = comp
+  const { camera, cursor, click, background, badge } = comp
   const W = source.width
   const H = source.height
 
@@ -42,8 +50,64 @@ export function drawComposition(
   const sy = camera.y - viewH / 2
   ctx.drawImage(image, sx, sy, viewW, viewH, dx, dy, dw, dh)
 
+  // 커서·클릭 오버레이 — 인셋 영역 좌표계로 매핑해 그린다.
+  const map: Mapping = {
+    toCanvasX: (x) => dx + ((x - sx) / viewW) * dw,
+    toCanvasY: (y) => dy + ((y - sy) / viewH) * dh,
+    drawScale: dw / viewW
+  }
+  if (click) drawClickHighlight(ctx, click, map)
+  if (cursor) drawCursor(ctx, cursor, click, map)
+
   // 뷰포트 크기 배지.
   if (badge.visible) drawBadge(ctx, badge.label, W, H)
+}
+
+/** 클릭 하이라이트: 퍼지는 리플(원). 커서 아래에 먼저 그린다. */
+function drawClickHighlight(
+  ctx: Ctx,
+  click: NonNullable<FrameComposition['click']>,
+  map: Mapping
+): void {
+  const cx = map.toCanvasX(click.x)
+  const cy = map.toCanvasY(click.y)
+  const radius = 8 + 44 * click.progress * map.drawScale
+  ctx.beginPath()
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+  ctx.strokeStyle = `rgba(56, 189, 248, ${(1 - click.progress) * 0.9})`
+  ctx.lineWidth = 3
+  ctx.stroke()
+}
+
+/** 스무딩된 커서: 화살표 벡터. 눌림 스케일 — 클릭 순간 살짝 작아졌다 돌아온다. */
+function drawCursor(
+  ctx: Ctx,
+  cursor: NonNullable<FrameComposition['cursor']>,
+  click: FrameComposition['click'],
+  map: Mapping
+): void {
+  const cx = map.toCanvasX(cursor.x)
+  const cy = map.toCanvasY(cursor.y)
+  const press = click ? 1 - 0.2 * (1 - click.progress) : 1
+  drawArrowCursor(ctx, cx, cy, 18 * map.drawScale * press)
+}
+
+/** 화살표 커서 벡터 하나. (tipX, tipY)가 커서 끝점. */
+function drawArrowCursor(ctx: Ctx, tipX: number, tipY: number, size: number): void {
+  ctx.save()
+  ctx.translate(tipX, tipY)
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.lineTo(0, size)
+  ctx.lineTo(size * 0.28, size * 0.75)
+  ctx.lineTo(size * 0.52, size * 0.52)
+  ctx.closePath()
+  ctx.fillStyle = '#0f172a'
+  ctx.fill()
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+  ctx.restore()
 }
 
 /** 우하단에 뷰포트 크기 배지(둥근 알약)를 그린다. 크기는 프레임에 비례. */

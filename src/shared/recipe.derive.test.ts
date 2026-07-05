@@ -27,11 +27,9 @@ describe('자동 효과 유도: 이벤트 트랙 → 렌더 레시피', () => {
     expect(seg0.fullInAtMs).toBe(1000)
     expect(seg0.holdEndMs).toBe(2500 + ZOOM_DEFAULTS.holdAfterMs)
     expect(seg0.endMs).toBe(2500 + ZOOM_DEFAULTS.holdAfterMs + ZOOM_DEFAULTS.rampOutMs)
-    // 두 클릭이 팬 키프레임으로 보존된다 (그 사이 줌 유지·팬).
-    expect(seg0.keyframes).toEqual([
-      { t: 1000, x: 400, y: 300 },
-      { t: 2500, x: 420, y: 310 }
-    ])
+    // 둘째 클릭(420,310)은 첫 클릭(400,300)의 확대 뷰 안이라 팬을 만들지 않는다(줌 유지).
+    // 활동 시각으로 holdEnd만 늘리고 카메라는 첫 클릭에 머문다.
+    expect(seg0.keyframes).toEqual([{ t: 1000, x: 400, y: 300 }])
 
     // 구간1: 단일 클릭.
     expect(seg1.fullInAtMs).toBe(8000)
@@ -42,7 +40,38 @@ describe('자동 효과 유도: 이벤트 트랙 → 렌더 레시피', () => {
     const recipe = deriveRecipe(loadTrack('event-track-clicks.json'), { source })
     const keyframeTimes = recipe.zoomSegments.flatMap((s) => s.keyframes.map((k) => k.t))
     // move 이벤트 시각(500, 1500, 6000)은 어떤 키프레임에도 나타나지 않는다.
-    expect(keyframeTimes).toEqual([1000, 2500, 8000])
+    for (const moveT of [500, 1500, 6000]) expect(keyframeTimes).not.toContain(moveT)
+  })
+
+  it('확대 중 뷰 밖 클릭은 줌아웃 대신 팬으로 연결된다 (issue #4)', () => {
+    // 픽스처: 1.0s (300,250) → 2.5s (700,550). 배율 2.0에서 둘째 클릭은 첫 뷰 밖.
+    const recipe = deriveRecipe(loadTrack('event-track-pan.json'), { source })
+
+    // 두 클릭이 한 구간으로 묶인다 — 줌아웃/재줌인(구간 2개)이 아니다.
+    expect(recipe.zoomSegments).toHaveLength(1)
+    // 뷰 밖 클릭이 팬 키프레임으로 이어진다 — 배율 유지, 중심만 이동.
+    expect(recipe.zoomSegments[0].keyframes).toEqual([
+      { t: 1000, x: 300, y: 250 },
+      { t: 2500, x: 700, y: 550 }
+    ])
+  })
+
+  it('확대 중 뷰 안 클릭은 팬을 만들지 않고 줌 구간을 유지한다 (issue #4)', () => {
+    // 뷰 안 클릭이 이어져도 키프레임은 첫 클릭 하나, holdEnd는 마지막 활동으로 유지된다.
+    const track: EventTrack = {
+      protocolVersion: 1,
+      startedAt: 0,
+      durationMs: 8000,
+      samples: [
+        { t: 1000, kind: 'down', x: 500, y: 400, cursor: 'pointer' },
+        { t: 2000, kind: 'down', x: 520, y: 410, cursor: 'pointer' },
+        { t: 3000, kind: 'down', x: 480, y: 390, cursor: 'pointer' }
+      ]
+    }
+    const [seg] = deriveRecipe(track, { source }).zoomSegments
+    expect(seg.keyframes).toEqual([{ t: 1000, x: 500, y: 400 }])
+    // 세 클릭 모두 확대를 유지 — 마지막 활동(3000) 기준으로 줌아웃 시작.
+    expect(seg.holdEndMs).toBe(3000 + ZOOM_DEFAULTS.holdAfterMs)
   })
 
   it('클릭이 없으면 줌 구간도 없다', () => {
