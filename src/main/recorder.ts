@@ -2,7 +2,6 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { createInterface } from 'node:readline'
 import { writeFile, mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { homedir } from 'node:os'
 import {
   parseSidecarLine,
   foldSidecarMessages,
@@ -10,6 +9,8 @@ import {
   type CaptureTarget,
   type SidecarMessage
 } from './sidecar/protocol'
+import type { EventTrack } from '../shared/event-track'
+import { recordingsBaseDir, writeManifest, MANIFEST_VERSION } from './storage'
 
 /**
  * 사이드카 프로세스의 수명주기를 관리한다. 본체 쪽에서 사이드카 프로토콜 계약을
@@ -24,6 +25,8 @@ export interface RecordingResult {
   videoPath: string
   /** 이벤트 트랙 파일(events.json) 절대 경로. 원본과 분리 저장된다. */
   eventsPath: string
+  /** 이벤트 트랙 자체 — 렌더러가 자동 효과(줌) 유도의 입력으로 쓴다. */
+  eventTrack: EventTrack
   durationMs: number
   eventCount: number
   /** 녹화된 캡처 대상 (전체 화면 또는 특정 창). */
@@ -100,7 +103,7 @@ export class Recorder {
     this.messages = []
     this.eventCount = 0
     this.finalized = false
-    this.folder = join(homedir(), 'Movies', 'DevScreen', timestampFolderName(now))
+    this.folder = join(recordingsBaseDir(), timestampFolderName(now))
     await mkdir(this.folder, { recursive: true })
 
     const child = spawn(this.sidecarPath, ['record', '--out', this.folder, '--target', targetId], {
@@ -172,10 +175,22 @@ export class Recorder {
     const eventsPath = join(this.folder, 'events.json')
     await writeFile(eventsPath, JSON.stringify(outcome.eventTrack, null, 2), 'utf8')
 
+    // 세 산출물(원본·이벤트 트랙·레시피)을 묶어 "다시 열기"를 가능케 하는 매니페스트.
+    // 레시피는 미리보기에서 유도·저장되므로 여기서는 원본·이벤트 트랙만 묶는다.
+    await writeManifest(this.folder, {
+      version: MANIFEST_VERSION,
+      videoPath: outcome.recording.rawVideoPath,
+      startedAt: outcome.recording.startedAt,
+      durationMs: outcome.recording.durationMs,
+      eventCount: outcome.eventTrack.samples.length,
+      target: outcome.recording.target
+    })
+
     cb.onComplete({
       folder: this.folder,
       videoPath: outcome.recording.rawVideoPath,
       eventsPath,
+      eventTrack: outcome.eventTrack,
       durationMs: outcome.recording.durationMs,
       eventCount: outcome.eventTrack.samples.length,
       target: outcome.recording.target

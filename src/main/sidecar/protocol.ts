@@ -9,6 +9,19 @@
  * 본체는 stdin에 명령 한 줄을 쓴다. 문서화된 계약은 docs/sidecar-protocol.md 참고.
  */
 
+import type {
+  CursorKind,
+  MouseEventKind,
+  MouseSample,
+  EventTrack,
+  CaptureTarget,
+  CaptureTargetKind
+} from '../../shared/event-track'
+
+// 이벤트 트랙·캡처 대상 도메인 타입은 shared에 있다 (자동 효과 파이프라인·미리보기도 공유).
+// 기존 소비자와의 호환을 위해 여기서 재노출한다.
+export type { CursorKind, MouseEventKind, MouseSample, EventTrack, CaptureTarget, CaptureTargetKind }
+
 /** 계약 버전. 호환 불가능한 변경 시 올린다. ready 메시지로 본체가 검증한다. */
 export const SIDECAR_PROTOCOL_VERSION = 2
 
@@ -17,32 +30,6 @@ export const SidecarCommand = {
   /** 녹화 정지. 사이드카는 원본 파일을 마무리하고 stopped를 보낸 뒤 종료한다. */
   Stop: 'stop'
 } as const
-
-/** 캡처 대상 종류 — 디스플레이(전체 화면) 또는 개별 창. */
-export type CaptureTargetKind = 'display' | 'window'
-
-/**
- * 녹화 대상 후보. `list` 명령이 열거하고, 본체는 이 중 하나의 `id`를 골라
- * `record --target <id>`로 넘긴다. width·height는 대상의 논리 크기(포인트)이며,
- * 이벤트 좌표가 놓이는 좌표 공간의 경계다 (좌상단 원점).
- */
-export interface CaptureTarget {
-  kind: CaptureTargetKind
-  /** 사이드카에 넘기는 안정적 식별자. `display:<번호>` 또는 `window:<CGWindowID>`. */
-  id: string
-  /** 사람이 읽는 이름 (디스플레이명 또는 "앱 — 창 제목"). */
-  title: string
-  /** 대상 폭 (포인트). 이벤트 x 좌표의 상한. */
-  width: number
-  /** 대상 높이 (포인트). 이벤트 y 좌표의 상한. */
-  height: number
-}
-
-/** 재현 대상 커서 모양 3종. 그 외는 arrow로 대체된다 (SPEC 커서 렌더링). */
-export type CursorKind = 'arrow' | 'pointer' | 'ibeam'
-
-/** 마우스 이벤트 종류. 스크롤·호버는 이벤트 트랙에 기록하지 않는다. */
-export type MouseEventKind = 'move' | 'down' | 'up'
 
 /** `list` 명령의 응답 — 선택 가능한 캡처 대상 목록. 이 스트림의 유일한 메시지. */
 export interface TargetListMessage {
@@ -105,27 +92,6 @@ export type SidecarMessage =
   | StoppedMessage
   | ErrorMessage
   | TargetListMessage
-
-/**
- * 이벤트 트랙 — 원본 영상과 분리 저장되는 마우스 이벤트 로그. events.json의 형태이며,
- * 이후 슬라이스에서 자동 효과(줌 구간) 유도의 입력이 된다.
- */
-export interface EventTrack {
-  protocolVersion: number
-  startedAt: number
-  durationMs: number
-  /** 좌표가 놓인 캡처 대상. 자동 줌이 이 경계 안에서 클릭 지점을 확대·클램핑한다. */
-  target: CaptureTarget
-  samples: MouseSample[]
-}
-
-export interface MouseSample {
-  t: number
-  kind: MouseEventKind
-  x: number
-  y: number
-  cursor: CursorKind
-}
 
 /** 녹화 참조 — 원본 영상 파일과 그 메타데이터를 가리킨다. */
 export interface RecordingRef {

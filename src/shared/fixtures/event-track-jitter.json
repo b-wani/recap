@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 1,
+  "startedAt": 1751710200000,
+  "durationMs": 600,
+  "samples": [
+    { "t": 0, "kind": "move", "x": 0, "y": 0, "cursor": "arrow" },
+    { "t": 100, "kind": "move", "x": 100, "y": 20, "cursor": "arrow" },
+    { "t": 200, "kind": "move", "x": 200, "y": -20, "cursor": "arrow" },
+    { "t": 300, "kind": "move", "x": 300, "y": 20, "cursor": "arrow" },
+    { "t": 400, "kind": "move", "x": 400, "y": -20, "cursor": "arrow" },
+    { "t": 500, "kind": "move", "x": 500, "y": 0, "cursor": "arrow" }
+  ]
+}

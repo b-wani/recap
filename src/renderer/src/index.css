@@ -111,15 +111,230 @@ body {
   color: #ff453a;
 }
 
+.recent {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.recent-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8e8e93;
+  margin: 0 0 10px;
+}
+
+.recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recent-item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  background: #2c2c2e;
+  color: #f2f2f7;
+  cursor: pointer;
+  text-align: left;
+}
+
+.recent-item:hover {
+  background: #3a3a3c;
+}
+
+.recent-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.recent-meta {
+  font-size: 12px;
+  color: #8e8e93;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
 .preview {
   align-items: stretch;
 }
 
-.video {
+.preview-canvas {
   width: 100%;
+  height: auto;
+  display: block;
   border-radius: 12px;
   background: black;
-  aspect-ratio: 16 / 9;
+}
+
+.controls {
+  border: 1px solid #3a3a3c;
+  border-radius: 10px;
+  padding: 12px 16px 14px;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px;
+}
+
+.controls legend {
+  font-size: 12px;
+  color: #8e8e93;
+  padding: 0 6px;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #aeaeb2;
+}
+
+.control-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.control input[type='color'] {
+  width: 44px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+.control input[type='range'] {
+  width: 140px;
+}
+
+.timeline {
+  width: 100%;
+  user-select: none;
+}
+
+.tl-track {
+  position: relative;
+  height: 56px;
+  border-radius: 8px;
+  background: #2c2c2e;
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* 트림 창 밖 구간 — 최종 영상에서 제외됨. */
+.tl-trimmed {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+/* 줌 구간 블록. */
+.tl-seg {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  min-width: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: #0a84ff;
+  color: white;
+  font-size: 12px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.tl-seg.is-selected {
+  outline: 2px solid #f2f2f7;
+}
+
+.tl-seg-label {
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 4px;
+}
+
+.tl-seg-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.tl-seg-edge-start {
+  left: 0;
+  border-radius: 6px 0 0 6px;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.tl-seg-edge-end {
+  right: 0;
+  border-radius: 0 6px 6px 0;
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.tl-seg-del {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #ff453a;
+  color: white;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* 트림 핸들. */
+.tl-trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  margin-left: -3px;
+  background: #ff9f0a;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.tl-help {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #8e8e93;
+}
+
+.meta-sub {
+  color: #8e8e93;
+  font-size: 12px;
 }
 
 .meta {
@@ -145,6 +360,27 @@ body {
   font-size: 12px;
   color: #aeaeb2;
   word-break: break-all;
+}
+
+.btn-export {
+  background: #0a84ff;
+  color: white;
+}
+
+.export-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.export-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.export-warn {
+  color: #ff9f0a;
 }
 
 .error {

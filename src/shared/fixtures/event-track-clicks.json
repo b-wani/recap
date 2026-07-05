@@ -1,0 +1,16 @@
+{
+  "protocolVersion": 1,
+  "startedAt": 1751710200000,
+  "durationMs": 12000,
+  "samples": [
+    { "t": 500, "kind": "move", "x": 100, "y": 100, "cursor": "arrow" },
+    { "t": 1000, "kind": "down", "x": 400, "y": 300, "cursor": "pointer" },
+    { "t": 1050, "kind": "up", "x": 400, "y": 300, "cursor": "pointer" },
+    { "t": 1500, "kind": "move", "x": 410, "y": 305, "cursor": "arrow" },
+    { "t": 2500, "kind": "down", "x": 420, "y": 310, "cursor": "pointer" },
+    { "t": 2550, "kind": "up", "x": 420, "y": 310, "cursor": "pointer" },
+    { "t": 6000, "kind": "move", "x": 700, "y": 500, "cursor": "arrow" },
+    { "t": 8000, "kind": "down", "x": 800, "y": 600, "cursor": "arrow" },
+    { "t": 8050, "kind": "up", "x": 800, "y": 600, "cursor": "arrow" }
+  ]
+}
