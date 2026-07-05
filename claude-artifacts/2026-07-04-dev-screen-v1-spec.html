@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dev-screen v1 스펙 — 개발 데모 녹화 macOS 앱</title>
+  <style>
+    :root {
+      --ivory:    #FAF9F5;
+      --slate:    #141413;
+      --clay:     #D97757;
+      --oat:      #E3DACC;
+      --olive:    #788C5D;
+      --gray-150: #F0EEE6;
+      --gray-300: #D1CFC5;
+      --gray-500: #87867F;
+      --gray-700: #3D3D3A;
+      --white:    #FFFFFF;
+
+      --serif: ui-serif, Georgia, 'Times New Roman', serif;
+      --sans:  system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --mono:  ui-monospace, 'SF Mono', Menlo, Monaco, monospace;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--sans);
+      background: var(--ivory);
+      color: var(--gray-700);
+      line-height: 1.55;
+      padding: 56px 32px 120px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page { max-width: 1120px; margin: 0 auto; }
+
+    header.page-head { margin-bottom: 48px; max-width: 820px; }
+
+    .eyebrow {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--gray-500);
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: 38px;
+      line-height: 1.15;
+      color: var(--slate);
+      margin-bottom: 18px;
+      letter-spacing: -0.01em;
+    }
+
+    .prompt-box {
+      background: var(--gray-150);
+      border: 1.5px solid var(--gray-300);
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: 14.5px;
+      color: var(--gray-700);
+    }
+    .prompt-box .label {
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--gray-500);
+      display: block;
+      margin-bottom: 6px;
+    }
+    .prompt-box p + p { margin-top: 8px; }
+
+    section { margin-bottom: 64px; }
+
+    .sec-head {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      margin-bottom: 8px;
+    }
+    .sec-head .num {
+      font-family: var(--mono);
+      font-size: 12px;
+      background: var(--oat);
+      color: var(--slate);
+      padding: 3px 9px;
+      border-radius: 8px;
+    }
+    .sec-head h2 {
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: 26px;
+      color: var(--slate);
+      letter-spacing: -0.01em;
+    }
+    .sec-intro {
+      font-size: 14.5px;
+      color: var(--gray-500);
+      max-width: 720px;
+      margin-bottom: 28px;
+    }
+    .sec-intro p + p { margin-top: 6px; }
+
+    /* summary strip */
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 64px;
+    }
+    @media (max-width: 900px) { .summary { grid-template-columns: repeat(2, 1fr); } }
+    .summary .cell {
+      background: var(--white);
+      border: 1.5px solid var(--gray-300);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .summary .k {
+      font-family: var(--mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--gray-500);
+      margin-bottom: 6px;
+    }
+    .summary .v {
+      font-size: 17px;
+      color: var(--slate);
+      font-weight: 600;
+    }
+    .summary .v.accent { color: var(--clay); }
+
+    /* scope columns */
+    .scope-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .scope-grid { grid-template-columns: 1fr; } }
+    .scope-col {
+      background: var(--white);
+      border: 1.5px solid var(--gray-300);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .scope-col .col-head {
+      padding: 12px 18px;
+      border-bottom: 1.5px solid var(--gray-300);
+      font-family: var(--mono);
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: var(--gray-150);
+      color: var(--gray-700);
+    }
+    .scope-col.in  .col-head { background: #E4E9DC; color: #4B5C39; }
+    .scope-col.out .col-head { background: #F3D9CC; color: #8A3B1E; }
+    .scope-col ul { list-style: none; padding: 14px 18px; }
+    .scope-col li {
+      font-size: 13.5px;
+      padding: 6px 0 6px 18px;
+      position: relative;
+    }
+    .scope-col li::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 13px;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--gray-300);
+    }
+    .scope-col.in  li::before { background: var(--olive); }
+    .scope-col.out li::before { background: var(--clay); }
+    .scope-col li .why { color: var(--gray-500); font-size: 12.5px; }
+
+    /* milestone timeline (재사용: 줌 수명주기 / 사용 동선) */
+    .milestones { display: flex; flex-direction: column; gap: 0; }
+    .milestone {
+      display: grid;
+      grid-template-columns: 120px 28px 1fr;
+      gap: 0 18px;
+      position: relative;
+    }
+    .milestone .when {
+      text-align: right;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--gray-500);
+      padding-top: 4px;
+    }
+    .milestone .dot-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .milestone .dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--white);
+      border: 3px solid var(--clay);
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+    .milestone .line {
+      width: 2px;
+      flex: 1;
+      background: var(--gray-300);
+      margin: 4px 0;
+    }
+    .milestone:last-child .line { display: none; }
+    .milestone .body { padding-bottom: 32px; }
+    .milestone .body h3 {
+      font-family: var(--serif);
+      font-weight: 500;
+      font-size: 19px;
+      color: var(--slate);
+      margin-bottom: 4px;
+    }
+    .milestone .body p { font-size: 14px; color: var(--gray-500); margin-bottom: 10px; max-width: 620px; }
+    .milestone .tags { display: flex; gap: 8px; flex-wrap: wrap; }
+    .milestone .tag {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      background: var(--gray-150);
+      border: 1px solid var(--gray-300);
+      border-radius: 6px;
+      padding: 3px 8px;
+      color: var(--gray-700);
+    }
+
+    /* diagram */
+    .diagram {
+      background: var(--white);
+      border: 1.5px solid var(--gray-300);
+      border-radius: 12px;
+      padding: 28px;
+      overflow-x: auto;
+    }
+    .diagram svg { display: block; min-width: 780px; }
+    .diagram text { font-family: var(--mono); }
+    .caption { font-size: 13px; color: var(--gray-500); margin-top: 12px; }
+
+    /* code panel */
+    .code-block { display: flex; flex-direction: column; gap: 10px; max-width: 620px; }
+    .code-block .file-label {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--gray-500);
+    }
+    .code {
+      background: var(--slate);
+      border-radius: 12px;
+      padding: 18px 20px;
+      overflow-x: auto;
+    }
+    .code pre {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.65;
+      color: #E8E6DE;
+      white-space: pre;
+    }
+    .code .kw  { color: var(--clay); }
+    .code .str { color: var(--olive); }
+    .code .cm  { color: var(--gray-500); }
+    .code .fn  { color: #C9B98A; }
+
+    /* table (risks 스타일 재사용) */
+    .risks {
+      border: 1.5px solid var(--gray-300);
+      border-radius: 12px;
+      overflow: hidden;
+      background: var(--white);
+    }
+    .risks .row {
+      display: grid;
+      grid-template-columns: 150px 1fr 1fr;
+      gap: 0;
+    }
+    @media (max-width: 780px) { .risks .row { grid-template-columns: 1fr; } }
+    .risks .row + .row { border-top: 1.5px solid var(--gray-300); }
+    .risks .cell { padding: 14px 18px; font-size: 13.5px; }
+    .risks .cell + .cell { border-left: 1.5px solid var(--gray-300); }
+    @media (max-width: 780px) { .risks .cell + .cell { border-left: none; border-top: 1px dashed var(--gray-300); } }
+    .risks .head { background: var(--gray-150); font-weight: 600; color: var(--slate); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .risks .rowlabel { font-weight: 600; color: var(--slate); }
+
+    /* cursor cards */
+    .cursor-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 900px) { .cursor-grid { grid-template-columns: repeat(2, 1fr); } }
+    .cursor-card {
+      background: var(--white);
+      border: 1.5px solid var(--gray-300);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .cursor-card h3 {
+      font-size: 14px;
+      color: var(--slate);
+      margin-bottom: 6px;
+    }
+    .cursor-card p { font-size: 13px; color: var(--gray-500); }
+    .cursor-card .opt {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--gray-150);
+      border: 1px solid var(--gray-300);
+      border-radius: 6px;
+      padding: 2px 7px;
+      margin-top: 8px;
+      margin-right: 4px;
+      color: var(--gray-700);
+    }
+    .cursor-card .opt.default { background: var(--oat); font-weight: 600; }
+
+    /* footnote */
+    .footnote {
+      border-top: 1.5px solid var(--gray-300);
+      padding-top: 20px;
+      font-size: 13px;
+      color: var(--gray-500);
+      max-width: 720px;
+    }
+    .footnote p + p { margin-top: 6px; }
+    code {
+      font-family: var(--mono);
+      font-size: 0.92em;
+      background: var(--gray-150);
+      border-radius: 4px;
+      padding: 1px 5px;
+    }
+    .code code { background: none; padding: 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+
+    <header class="page-head">
+      <div class="eyebrow">Spec · dev-screen v1 · 2026-07-04</div>
+      <h1>개발 데모 녹화 앱 — v1 스펙</h1>
+      <div class="prompt-box">
+        <span class="label">제품 정의</span>
+        <p>웹 프론트엔드 개발자가 개발 화면을 녹화하고, 자동 줌과 커서 효과를 입혀 GitHub PR/이슈와 업무 티켓에 첨부할 1~2분 데모 영상을 만드는 macOS 개인 도구입니다.</p>
+        <p>Screen Studio와 Cap의 공통 코어 기능만 벤치마킹합니다.</p>
+      </div>
+    </header>
+
+    <div class="summary">
+      <div class="cell"><div class="k">스택</div><div class="v accent">Electron + Swift 사이드카</div></div>
+      <div class="cell"><div class="k">캡처</div><div class="v">윈도우 · 60fps · 2x</div></div>
+      <div class="cell"><div class="k">산출물</div><div class="v">MP4 / GIF (무음)</div></div>
+      <div class="cell"><div class="k">편집</div><div class="v">경량 3종만</div></div>
+    </div>
+
+    <!-- ============================================================= -->
+
+    <section>
+      <div class="sec-head"><span class="num">01</span><h2>범위</h2></div>
+      <p class="sec-intro">v1은 "녹화 → 자동 효과 → 미리보기·경량 편집 → 익스포트" 파이프라인 하나에 집중합니다.
+        제외 항목은 실수가 아니라 결정입니다 — 중간 실수는 잘라내지 않고 재녹화합니다.</p>
+
+      <div class="scope-grid">
+        <div class="scope-col in">
+          <div class="col-head">v1 포함</div>
+          <ul>
+            <li>윈도우 녹화 + 이벤트 트랙 기록</li>
+            <li>자동 줌 (클릭 기반) · 커서 스무딩 · 클릭 리플</li>
+            <li>미리보기 + 앞뒤 트리밍</li>
+            <li>줌 구간 삭제 / 이동 / 길이 조절</li>
+            <li>배경 · 패딩 · 모서리 스타일</li>
+            <li>뷰포트 크기 배지 오버레이</li>
+            <li>GitHub 프리셋 익스포트 + 클립보드 복사</li>
+          </ul>
+        </div>
+        <div class="scope-col out">
+          <div class="col-head">v1 제외 (결정)</div>
+          <ul>
+            <li>컷 편집 <span class="why">— 실수하면 재녹화</span></li>
+            <li>오디오 전체 <span class="why">— 무음 데모</span></li>
+            <li>속도 조절 · 자막</li>
+            <li>웹캠 오버레이 · 주석 도구</li>
+            <li>녹화 중 창 리사이즈 <span class="why">— DevTools 반응형 모드로 우회</span></li>
+            <li>모션 블러</li>
+          </ul>
+        </div>
+        <div class="scope-col">
+          <div class="col-head">v2 예약</div>
+          <ul>
+            <li>Before / After 비교 렌더링</li>
+            <li>키 입력 오버레이</li>
+            <li>브랜치 / 커밋 배지</li>
+            <li>Dooray 티켓 첨부</li>
+            <li>영역 캡처 · 스타일 프리셋 저장</li>
+            <li>구간별 줌 배율</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================= -->
+
+    <section>
+      <div class="sec-head"><span class="num">02</span><h2>아키텍처 — 후처리 렌더링 모델</h2></div>
+      <p class="sec-intro">
+        <p>녹화 중에는 효과를 굽지 않습니다. 원본 영상과 이벤트 트랙(마우스 위치·클릭·커서 타입·키 타임스탬프)만 기록합니다.</p>
+        <p>자동 효과는 이벤트 트랙에서 렌더 레시피로 생성되고, 익스포트 때 원본에 합성됩니다. 편집이란 이 레시피를 고치는 일이며, 원본은 불변입니다.</p>
+      </p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 880 330" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#87867F"/>
+            </marker>
+            <marker id="arrowClay" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="#D97757"/>
+            </marker>
+          </defs>
+
+          <g font-size="12" fill="#141413">
+            <!-- capture sidecar -->
+            <rect x="20" y="110" width="190" height="66" rx="10" fill="#141413"/>
+            <text x="115" y="137" text-anchor="middle" font-weight="600" fill="#FAF9F5">Swift 캡처 사이드카</text>
+            <text x="115" y="156" text-anchor="middle" fill="#C9B98A" font-size="10.5">ScreenCaptureKit · 불변층</text>
+
+            <!-- raw -->
+            <rect x="290" y="40" width="170" height="54" rx="10" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+            <text x="375" y="63" text-anchor="middle" font-weight="600">raw.mp4</text>
+            <text x="375" y="80" text-anchor="middle" fill="#87867F" font-size="10.5">원본 · 60fps · 2x</text>
+
+            <!-- events -->
+            <rect x="290" y="130" width="170" height="54" rx="10" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+            <text x="375" y="153" text-anchor="middle" font-weight="600">events.json</text>
+            <text x="375" y="170" text-anchor="middle" fill="#87867F" font-size="10.5">이벤트 트랙</text>
+
+            <!-- recipe -->
+            <rect x="290" y="230" width="170" height="54" rx="10" fill="#FFFFFF" stroke="#D97757" stroke-width="1.5"/>
+            <text x="375" y="253" text-anchor="middle" font-weight="600">recipe.json</text>
+            <text x="375" y="270" text-anchor="middle" fill="#87867F" font-size="10.5">렌더 레시피</text>
+
+            <!-- editor -->
+            <rect x="540" y="130" width="170" height="66" rx="10" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+            <text x="625" y="157" text-anchor="middle" font-weight="600">에디터 창</text>
+            <text x="625" y="176" text-anchor="middle" fill="#87867F" font-size="10.5">미리보기 + 경량 편집</text>
+
+            <!-- export -->
+            <rect x="540" y="240" width="170" height="60" rx="10" fill="#FFFFFF" stroke="#D1CFC5" stroke-width="1.5"/>
+            <text x="625" y="265" text-anchor="middle" font-weight="600">익스포트 렌더러</text>
+            <text x="625" y="283" text-anchor="middle" fill="#87867F" font-size="10.5">Canvas + WebCodecs</text>
+
+            <!-- output -->
+            <rect x="770" y="240" width="92" height="60" rx="10" fill="#141413"/>
+            <text x="816" y="265" text-anchor="middle" font-weight="600" fill="#FAF9F5">MP4/GIF</text>
+            <text x="816" y="283" text-anchor="middle" fill="#C9B98A" font-size="10.5">→ ⌘V</text>
+          </g>
+
+          <g stroke="#87867F" stroke-width="1.5" fill="none">
+            <path d="M210 128 C 250 110, 250 80, 290 70" marker-end="url(#arrow)"/>
+            <path d="M210 152 L290 155" marker-end="url(#arrow)"/>
+            <path d="M375 184 L375 230" marker-end="url(#arrow)"/>
+            <path d="M460 67 C 530 80, 560 100, 605 130" marker-end="url(#arrow)"/>
+            <path d="M625 196 L625 240" marker-end="url(#arrow)"/>
+            <path d="M710 270 L770 270" marker-end="url(#arrow)"/>
+          </g>
+          <g stroke="#D97757" stroke-width="1.5" fill="none" stroke-dasharray="5 4">
+            <path d="M460 257 L540 262" marker-end="url(#arrowClay)"/>
+            <path d="M540 175 C 500 190, 490 210, 462 235" marker-end="url(#arrowClay)"/>
+          </g>
+
+          <g font-size="10.5" fill="#87867F">
+            <text x="222" y="100">영상 기록</text>
+            <text x="222" y="178">이벤트 스트리밍</text>
+            <text x="385" y="212">자동 효과 생성</text>
+            <text x="478" y="98">원본 재생</text>
+            <text x="478" y="222" fill="#D97757">편집 = 레시피 수정</text>
+            <text x="470" y="284" fill="#D97757">합성 입력</text>
+          </g>
+        </svg>
+        <p class="caption">실선 = 데이터 흐름. 점선 = 편집 루프(레시피 수정 → 미리보기 반영 → 익스포트 입력).
+          효과 렌더링은 전부 TypeScript(Chromium) 영역에 있고, Swift 사이드카는 기록만 담당하는 불변층입니다.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================= -->
+
+    <section>
+      <div class="sec-head"><span class="num">03</span><h2>자동 줌 규칙</h2></div>
+      <p class="sec-intro">클릭 하나의 수명주기로 정리한 규칙입니다.
+        이 규칙이 이벤트 트랙에서 줌 구간을 자동 생성하는 알고리즘의 스펙입니다.</p>
+
+      <div class="milestones">
+        <div class="milestone">
+          <div class="when">클릭 −0.5초</div>
+          <div class="dot-col"><span class="dot"></span><span class="line"></span></div>
+          <div class="body">
+            <h3>선행 줌인</h3>
+            <p>클릭보다 0.5초 앞서 부드럽게 확대를 시작합니다. 시청자는 클릭 순간을 이미 확대된 화면에서 봅니다.
+               중심은 클릭 좌표이며, 화면 가장자리에서는 프레임이 원본 밖으로 나가지 않도록 중심을 보정합니다.</p>
+            <div class="tags"><span class="tag">트리거: 클릭만</span><span class="tag">배율: 전역 2.0x (1.5/2/2.5)</span></div>
+          </div>
+        </div>
+        <div class="milestone">
+          <div class="when">유지 중</div>
+          <div class="dot-col"><span class="dot"></span><span class="line"></span></div>
+          <div class="body">
+            <h3>병합과 팬</h3>
+            <p>3초 이내에 다음 클릭이 이어지면 줌을 유지합니다. 새 클릭이 현재 뷰 밖이면 줌아웃 대신 카메라를 이동(팬)합니다.
+               키 입력은 줌을 새로 만들지 않지만 "활동"으로 카운트되어, 타이핑하는 동안 줌이 풀리지 않습니다.</p>
+            <div class="tags"><span class="tag">병합 임계 3초</span><span class="tag">키 입력 = 유지 조건</span></div>
+          </div>
+        </div>
+        <div class="milestone">
+          <div class="when">활동 +2초</div>
+          <div class="dot-col"><span class="dot"></span><span class="line"></span></div>
+          <div class="body">
+            <h3>줌아웃</h3>
+            <p>마지막 활동 후 2초간 아무 일도 없으면 부드럽게 전체 화면으로 돌아갑니다.</p>
+          </div>
+        </div>
+        <div class="milestone">
+          <div class="when">편집 시</div>
+          <div class="dot-col"><span class="dot"></span><span class="line"></span></div>
+          <div class="body">
+            <h3>사용자 보정</h3>
+            <p>자동 생성된 줌 구간은 에디터 타임라인에 표시되며, 삭제·이동·길이 조절이 가능합니다.
+               자동 줌이 오판해도 재녹화 없이 구간 하나만 고치면 됩니다.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================= -->
+
+    <section>
+      <div class="sec-head"><span class="num">04</span><h2>커서 렌더링</h2></div>
+      <p class="sec-intro">시스템 커서는 캡처에서 제외하고, 이벤트 트랙의 좌표로 벡터 커서를 다시 그립니다.
+        그래서 녹화가 끝난 뒤에도 크기와 스무딩을 바꿀 수 있습니다.</p>
+
+      <div class="cursor-grid">
+        <div class="cursor-card">
+          <h3>스무딩</h3>
+          <p>원시 좌표를 스플라인 보간으로 부드러운 곡선 이동으로 변환합니다.</p>
+          <span class="opt">끔</span><span class="opt default">약</span><span class="opt">강</span>
+        </div>
+        <div class="cursor-card">
+          <h3>크기</h3>
+          <p>실제보다 크게 그려 데모 가독성을 높입니다.</p>
+          <span class="opt">1x</span><span class="opt default">1.5x</span><span class="opt">2x</span>
+        </div>
+        <div class="cursor-card">
+          <h3>클릭 효과</h3>
+          <p>클릭 순간 퍼지는 리플(원)과 살짝 눌리는 스케일 애니메이션을 넣습니다.</p>
+        </div>
+        <div class="cursor-card">
+          <h3>커서 모양 3종</h3>
+          <p>화살표 · 포인터(손가락) · I-beam을 기록해 재현합니다. hover 시 포인터로 바뀌는 신호가 살아납니다. 그 외 커서는 화살표로 대체합니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================= -->
+
+    <section>
+      <div class="sec-head"><span class="num">05</span><h2>저장 모델</h2></div>
+      <p class="sec-intro">프로젝트는 평문 JSON과 표준 영상 포맷으로 된 폴더 번들입니다.
+        앱이 없어도 QuickTime과 텍스트 에디터로 열립니다. 자동 삭제는 없으며, 정리는 폴더 단위로 직접 합니다.</p>
+
+      <div class="code-block">
+        <div class="file-label">~/Movies/DevScreen/2026-07-04_1432/</div>
+        <div class="code"><pre><span class="fn">raw.mp4</span>          <span class="cm"># 원본 영상 (60fps · Retina 2x · 커서 없음)</span>
+<span class="fn">events.json</span>      <span class="cm"># 이벤트 트랙 — 마우스 위치·클릭·커서 타입·키 타임스탬프</span>
+<span class="fn">recipe.json</span>      <span class="cm"># 렌더 레시피 — 줌 구간·트림·스타일·커서 설정</span>
+<span class="fn">export-1.mp4</span>     <span class="cm"># 익스포트 산출물 (같은 폴더에 누적)</span>
+<span class="fn">export-2.gif</span></pre></div>
+      </div>
+      <p class="caption">에디터의 "최근 녹화" 목록에서 아무 프로젝트나 다시 열어 레시피를 수정하고 재익스포트할 수 있습니다.</p>
+    </section>
+
+    <!-- ============================================================= -->
+
+    <section>
+      <div class="sec-head"><span class="num">06</span><h2>사용 동선</h2></div>
+      <p class="sec-intro">"개발 중 → 녹화 → 확인 → 붙여넣기"의 마찰을 최소화합니다. 메뉴바 상주 앱이며 Dock 아이콘은 없습니다.</p>
+
+      <div class="milestones">
+        <div class="milestone">
+          <div class="when">시작</div>
+          <div class="dot-col"><span class="dot"></span><span class="line"></span></div>
+          <div class="body">
+            <h3>윈도우 선택 → 즉시 녹화</h3>
+            <p>메뉴바 패널에서 브라우저 창을 고르면 바로 녹화가 시작됩니다. 카운트다운은 없습니다 — 준비 동작은 앞 트리밍으로 잘라냅니다.
+               창 크기는 시작 시점에 고정됩니다.</p>
+            <div class="tags"><span class="tag">⌥⌘R 토글</span><span class="tag">녹화 중: 빨간 점 + 경과 시간</span></div>
+          </div>
+        </div>
+        <div class="milestone">
+          <div class="when">정지</div>
+          <div class="dot-col"><span class="dot"></span><span class="line"></span></div>
+          <div class="body">
+            <h3>에디터 창 자동 오픈</h3>
+            <p>미리보기, 경량 편집(트리밍·줌 구간·스타일), 익스포트 버튼이 한 창에 모여 있습니다.
+               이 창이 최근 녹화 목록의 진입점도 겸합니다.</p>
+          </div>
+        </div>
+        <div class="milestone">
+          <div class="when">완료</div>
+          <div class="dot-col"><span class="dot"></span><span class="line"></span></div>
+          <div class="body">
+            <h3>익스포트 → 클립보드 → ⌘V</h3>
+            <p>익스포트가 끝나면 파일이 클립보드에 자동 복사되고 알림이 뜹니다.
+               PR 코멘트나 티켓 본문에 바로 붙여넣으면 동선이 끝납니다.</p>
+            <div class="tags"><span class="tag">Finder 열기 버튼</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================= -->
+
+    <section>
+      <div class="sec-head"><span class="num">07</span><h2>익스포트</h2></div>
+      <p class="sec-intro">기본은 MP4, GIF는 인라인 자동 재생이 필요한 마이크로 데모용 보조 옵션입니다.
+        두 포맷 모두 GitHub 첨부 제한을 넘지 않도록 크기를 자동으로 맞춥니다. 오디오 스트림은 넣지 않습니다.</p>
+
+      <div class="risks">
+        <div class="row">
+          <div class="cell head"></div>
+          <div class="cell head">MP4 (기본)</div>
+          <div class="cell head">GIF (보조)</div>
+        </div>
+        <div class="row">
+          <div class="cell rowlabel">용도</div>
+          <div class="cell">고화질 데모. GitHub에서 플레이어로 표시됩니다.</div>
+          <div class="cell">이슈/PR에서 스크롤만 해도 재생되는 인라인 데모.</div>
+        </div>
+        <div class="row">
+          <div class="cell rowlabel">사양</div>
+          <div class="cell">H.264 · 60fps · 최대 1080p 스케일</div>
+          <div class="cell">15fps · 최대 720px 폭</div>
+        </div>
+        <div class="row">
+          <div class="cell rowlabel">크기 보장</div>
+          <div class="cell">GitHub 프리셋: 100MB 이내로 비트레이트 자동 계산</div>
+          <div class="cell">10MB 초과 시 해상도·프레임레이트 자동 하향</div>
+        </div>
+        <div class="row">
+          <div class="cell rowlabel">오버레이</div>
+          <div class="cell" style="grid-column: span 2;">뷰포트 크기 배지(예: <code>1440×900</code>)를 영상 구석에 합성합니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================= -->
+
+    <div class="footnote">
+      <p>더 읽기 — 용어집은 저장소의 <code>CONTEXT.md</code>, 스택 결정 배경은 <code>docs/adr/0001</code>, 마크다운 원본은 <code>docs/SPEC.md</code>에 있습니다.</p>
+      <p>이 문서는 2026-07-04 그릴링 세션(질문 10개)에서 확정된 내용을 정리한 것입니다.</p>
+    </div>
+
+  </div>
+</body>
+</html>
