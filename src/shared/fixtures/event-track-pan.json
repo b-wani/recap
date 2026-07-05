@@ -1,0 +1,11 @@
+{
+  "protocolVersion": 1,
+  "startedAt": 1751710200000,
+  "durationMs": 6000,
+  "samples": [
+    { "t": 1000, "kind": "down", "x": 300, "y": 250, "cursor": "pointer" },
+    { "t": 1050, "kind": "up", "x": 300, "y": 250, "cursor": "pointer" },
+    { "t": 2500, "kind": "down", "x": 700, "y": 550, "cursor": "pointer" },
+    { "t": 2550, "kind": "up", "x": 700, "y": 550, "cursor": "pointer" }
+  ]
+}
