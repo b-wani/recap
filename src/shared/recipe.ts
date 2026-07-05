@@ -4,15 +4,17 @@
  * 두 단계의 순수 TypeScript 함수 체인이다 (Electron·Canvas·WebCodecs 무의존):
  *
  *  1. 자동 효과 유도  `deriveRecipe(이벤트 트랙) → 렌더 레시피`
- *     클릭 이벤트로부터 줌 구간 목록을 생성한다.
- *  2. 레시피 샘플링   `sampleRecipe(렌더 레시피, 시각 t) → 카메라 변환`
- *     특정 시각의 확대 배율·중심을 이징 포함해 계산한다.
+ *     클릭 이벤트로부터 줌 구간 목록(팬 키프레임 포함)을 생성한다.
+ *  2. 레시피 샘플링   `sampleFrame(렌더 레시피, 시각 t) → 프레임 샘플`
+ *     특정 시각의 카메라 변환(줌+팬)·스무딩된 커서·클릭 하이라이트를 함께 계산한다.
+ *     (`sampleRecipe`는 카메라 변환만 떼어낸 하위 함수다.)
  *
- * 미리보기 렌더링(Canvas)은 sampleRecipe의 출력을 그대로 그리기만 하는 얇은 층이다.
- * 효과 계산은 전부 이 모듈 안에 있다. 튜닝 수치(배율·이징·타이밍)는 여기 상수로 모은다.
+ * 미리보기 렌더링(Canvas)은 sampleFrame의 출력을 그대로 그리기만 하는 얇은 층이다.
+ * 효과 계산(줌 이징·팬·커서 스무딩·클릭 하이라이트)은 전부 이 모듈 안에 있다.
+ * 튜닝 수치(배율·이징·타이밍·스무딩 강도)는 여기 상수로 모은다.
  */
 
-import type { EventTrack, MouseSample } from './event-track'
+import type { CursorKind, EventTrack, MouseSample } from './event-track'
 
 /** 원본 프레임 크기(px). 카메라 클램핑의 기준이 된다. */
 export interface FrameSize {
@@ -44,9 +46,35 @@ export interface ZoomSegment {
   keyframes: PanKeyframe[]
 }
 
+/** 커서 위치 키프레임(원본 px) — 스무딩의 입력이 되는 원본 이벤트 좌표. */
+export interface CursorKeyframe {
+  t: number
+  x: number
+  y: number
+  cursor: CursorKind
+}
+
+/** 클릭(down) 지점 — 클릭 하이라이트의 입력. */
+export interface ClickMark {
+  t: number
+  x: number
+  y: number
+}
+
 /**
- * 렌더 레시피 — 녹화를 최종 영상으로 합성하는 파라미터. 이 슬라이스는 자동 줌만 다룬다.
- * (트림·배경/패딩·커서 설정은 이후 슬라이스에서 이 레시피에 더해진다.)
+ * 커서 트랙 — 커서 스무딩·클릭 하이라이트의 입력. 이벤트 트랙에서 유도되어 레시피에 담긴다.
+ * (원본 이벤트를 그대로 두어, 스무딩 강도는 샘플링 시점에 조절할 수 있게 한다.)
+ */
+export interface CursorTrack {
+  /** 시간순 커서 위치 키프레임 (move·down·up 전부). */
+  keyframes: CursorKeyframe[]
+  /** 시간순 클릭 지점. */
+  clicks: ClickMark[]
+}
+
+/**
+ * 렌더 레시피 — 녹화를 최종 영상으로 합성하는 파라미터. 이 슬라이스는 자동 줌 + 팬 + 커서를 다룬다.
+ * (트림·배경/패딩 스타일은 이후 슬라이스에서 이 레시피에 더해진다.)
  */
 export interface RenderRecipe {
   source: FrameSize
@@ -54,6 +82,8 @@ export interface RenderRecipe {
   zoomScale: number
   durationMs: number
   zoomSegments: ZoomSegment[]
+  /** 커서 스무딩·클릭 하이라이트의 입력. */
+  cursor: CursorTrack
 }
 
 /** 시각 t에서의 카메라 상태 — 미리보기 층이 그대로 그린다. */
@@ -63,6 +93,36 @@ export interface CameraTransform {
   /** 카메라가 화면 중앙에 두는 원본 좌표(px). */
   x: number
   y: number
+}
+
+/** 시각 t의 스무딩된 커서 상태(원본 px) — 미리보기 층이 그대로 그린다. */
+export interface CursorSample {
+  /** 스무딩된 위치(원본 px). 원본 이벤트의 흔들림이 감쇠되어 있다. */
+  x: number
+  y: number
+  /** 시각 t의 커서 모양(스무딩 대상 아님 — 가장 최근 이벤트의 모양). */
+  cursor: CursorKind
+}
+
+/** 시각 t의 활성 클릭 하이라이트 — 미리보기 층이 리플/눌림으로 그린다. */
+export interface ClickHighlight {
+  /** 클릭 위치(원본 px). */
+  x: number
+  y: number
+  /** 하이라이트 애니메이션 진행도 0→1 (0 = 클릭 순간). */
+  progress: number
+}
+
+/**
+ * 프레임 샘플 — 시각 t에서 미리보기 층이 그려야 할 모든 합성 파라미터.
+ * 카메라 변환 + 스무딩된 커서 + (있다면) 클릭 하이라이트.
+ */
+export interface FrameSample {
+  camera: CameraTransform
+  /** 커서 이벤트가 없으면 null. */
+  cursor: CursorSample | null
+  /** 활성 클릭 하이라이트가 없으면 null. */
+  click: ClickHighlight | null
 }
 
 export interface DeriveConfig {
@@ -86,6 +146,19 @@ export const ZOOM_DEFAULTS = {
   rampOutMs: 500,
   /** 클릭 간격이 이 이내면 한 줌 구간으로 병합 (SPEC 4: 3초 이내 줌 유지). */
   mergeGapMs: 3000
+} as const
+
+/**
+ * 커서 튜닝 수치 (SPEC "커서 렌더링"). 규칙만 테스트로 고정하고 값은 실험으로 정한다.
+ */
+export const CURSOR_DEFAULTS = {
+  /**
+   * 스무딩 커널의 표준편차(ms). 각 이벤트에 시간 거리 기반 가우시안 가중치를 주어
+   * 평균 내므로, 이 값이 클수록 흔들림이 더 강하게 감쇠된다(SPEC: 스무딩 끔/약/강).
+   */
+  smoothingMs: 120,
+  /** 클릭 하이라이트(리플+눌림)가 지속되는 시간(ms). */
+  clickHighlightMs: 400
 } as const
 
 /**
@@ -124,11 +197,21 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
   }
   flush()
 
+  // 커서 트랙: 모든 이벤트를 시간순 위치 키프레임으로, 클릭은 하이라이트용으로 담는다.
+  const keyframes: CursorKeyframe[] = [...track.samples]
+    .sort((a, b) => a.t - b.t)
+    .map((s) => ({ t: s.t, x: s.x, y: s.y, cursor: s.cursor }))
+  const cursor: CursorTrack = {
+    keyframes,
+    clicks: clicks.map((c) => ({ t: c.t, x: c.x, y: c.y }))
+  }
+
   return {
     source: { width: source.width, height: source.height },
     zoomScale,
     durationMs: track.durationMs,
-    zoomSegments
+    zoomSegments,
+    cursor
   }
 }
 
@@ -184,6 +267,77 @@ export function sampleRecipe(recipe: RenderRecipe, t: number): CameraTransform {
   }
 
   return clampCamera(scale, center, recipe.source)
+}
+
+/**
+ * 프레임 샘플링: 시각 t에서 미리보기 층이 그려야 할 합성 파라미터 전체를 계산한다.
+ * 카메라 변환 + 스무딩된 커서 + (있다면) 클릭 하이라이트. 계산은 전부 여기(순수 층)에서 한다.
+ */
+export function sampleFrame(recipe: RenderRecipe, t: number): FrameSample {
+  return {
+    camera: sampleRecipe(recipe, t),
+    cursor: sampleCursor(recipe.cursor, t),
+    click: sampleClick(recipe.cursor, t)
+  }
+}
+
+/**
+ * 스무딩된 커서: 이벤트 좌표를 시간 거리 기반 가우시안 가중 평균해, 원본의 흔들림을 감쇠한다.
+ * 대칭 커널이라 위치가 뒤처지지 않고, 인접한 반대 방향 지터가 서로 상쇄된다.
+ */
+function sampleCursor(track: CursorTrack, t: number): CursorSample | null {
+  const kf = track.keyframes
+  if (kf.length === 0) return null
+
+  const sigma = CURSOR_DEFAULTS.smoothingMs
+  let sumW = 0
+  let sumX = 0
+  let sumY = 0
+  for (const k of kf) {
+    const d = (t - k.t) / sigma
+    const w = Math.exp(-0.5 * d * d)
+    sumW += w
+    sumX += w * k.x
+    sumY += w * k.y
+  }
+
+  // t가 모든 이벤트에서 극단적으로 멀어 가중치가 언더플로하면 가장 가까운 키프레임으로 대체.
+  if (sumW === 0) {
+    const near = nearestKeyframe(kf, t)
+    return { x: near.x, y: near.y, cursor: cursorKindAt(kf, t) }
+  }
+  return { x: sumX / sumW, y: sumY / sumW, cursor: cursorKindAt(kf, t) }
+}
+
+/** 시각 t의 활성 클릭 하이라이트. clickHighlightMs 창 안에 든 가장 최근 클릭을 고른다. */
+function sampleClick(track: CursorTrack, t: number): ClickHighlight | null {
+  const dur = CURSOR_DEFAULTS.clickHighlightMs
+  for (let i = track.clicks.length - 1; i >= 0; i--) {
+    const c = track.clicks[i]
+    if (t >= c.t && t < c.t + dur) {
+      return { x: c.x, y: c.y, progress: (t - c.t) / dur }
+    }
+  }
+  return null
+}
+
+/** 시각 t의 커서 모양 — 모양은 스무딩하지 않고 t 이하 가장 최근 이벤트의 모양을 쓴다. */
+function cursorKindAt(kf: CursorKeyframe[], t: number): CursorKind {
+  let kind = kf[0].cursor
+  for (const k of kf) {
+    if (k.t <= t) kind = k.cursor
+    else break
+  }
+  return kind
+}
+
+/** 시간상 t에 가장 가까운 키프레임 (가중치 언더플로 시 대체용). */
+function nearestKeyframe(kf: CursorKeyframe[], t: number): CursorKeyframe {
+  let best = kf[0]
+  for (const k of kf) {
+    if (Math.abs(k.t - t) < Math.abs(best.t - t)) best = k
+  }
+  return best
 }
 
 /** 확대 없음 — 프레임 전체를 중앙에 둔다. */

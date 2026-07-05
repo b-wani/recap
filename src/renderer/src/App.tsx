@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import type { RecordingState } from '../../shared/ipc'
 import {
   deriveRecipe,
-  sampleRecipe,
+  sampleFrame,
   type CameraTransform,
+  type ClickHighlight,
+  type CursorSample,
   type FrameSize,
   type RenderRecipe
 } from '../../shared/recipe'
@@ -100,8 +102,9 @@ function PreviewView({
       const canvas = canvasRef.current
       const recipe = recipeRef.current
       if (!video || !canvas || !recipe) return
-      const camera = sampleRecipe(recipe, video.currentTime * 1000)
-      drawSampledFrame(canvas, video, camera, recipe.source)
+      const frame = sampleFrame(recipe, video.currentTime * 1000)
+      drawSampledFrame(canvas, video, frame.camera, recipe.source)
+      drawCursorOverlay(canvas, frame.cursor, frame.click, frame.camera, recipe.source)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
@@ -162,6 +165,72 @@ function drawSampledFrame(
   const sx = camera.x - viewW / 2
   const sy = camera.y - viewH / 2
   ctx.drawImage(video, sx, sy, viewW, viewH, 0, 0, canvas.width, canvas.height)
+}
+
+/**
+ * 커서 오버레이 렌더링 층 — 효과 계산을 하지 않는다. 파이프라인이 준 스무딩된 커서 위치와
+ * 클릭 하이라이트 진행도를 카메라 변환으로 캔버스 좌표에 매핑해 그리기만 한다.
+ */
+function drawCursorOverlay(
+  canvas: HTMLCanvasElement,
+  cursor: CursorSample | null,
+  click: ClickHighlight | null,
+  camera: CameraTransform,
+  source: FrameSize
+): void {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+
+  // 원본 px → 캔버스 px 매핑 (drawSampledFrame과 동일한 가시 영역). 배율은 camera.scale와 같다.
+  const viewW = source.width / camera.scale
+  const viewH = source.height / camera.scale
+  const sx = camera.x - viewW / 2
+  const sy = camera.y - viewH / 2
+  const toCanvasX = (x: number): number => ((x - sx) / viewW) * canvas.width
+  const toCanvasY = (y: number): number => ((y - sy) / viewH) * canvas.height
+
+  // 클릭 하이라이트: 퍼지는 리플(원). 커서 아래에 먼저 그린다.
+  if (click) {
+    const cx = toCanvasX(click.x)
+    const cy = toCanvasY(click.y)
+    const radius = 8 + 44 * click.progress * camera.scale
+    ctx.beginPath()
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2)
+    ctx.strokeStyle = `rgba(56, 189, 248, ${(1 - click.progress) * 0.9})`
+    ctx.lineWidth = 3
+    ctx.stroke()
+  }
+
+  // 스무딩된 커서: 화살표 벡터. 눌림 스케일 — 클릭 순간 살짝 작아졌다 돌아온다.
+  if (cursor) {
+    const cx = toCanvasX(cursor.x)
+    const cy = toCanvasY(cursor.y)
+    const press = click ? 1 - 0.2 * (1 - click.progress) : 1
+    drawArrowCursor(ctx, cx, cy, 18 * camera.scale * press)
+  }
+}
+
+/** 화살표 커서 벡터 하나. (tipX, tipY)가 커서 끝점. */
+function drawArrowCursor(
+  ctx: CanvasRenderingContext2D,
+  tipX: number,
+  tipY: number,
+  size: number
+): void {
+  ctx.save()
+  ctx.translate(tipX, tipY)
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.lineTo(0, size)
+  ctx.lineTo(size * 0.28, size * 0.75)
+  ctx.lineTo(size * 0.52, size * 0.52)
+  ctx.closePath()
+  ctx.fillStyle = '#0f172a'
+  ctx.fill()
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 1.5
+  ctx.stroke()
+  ctx.restore()
 }
 
 function ErrorView({
