@@ -1,5 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RecordingState } from '../../shared/ipc'
+import {
+  deriveRecipe,
+  sampleRecipe,
+  type CameraTransform,
+  type FrameSize,
+  type RenderRecipe
+} from '../../shared/recipe'
 
 function formatElapsed(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000))
@@ -67,21 +74,60 @@ function PreviewView({
   state: Extract<RecordingState, { status: 'preview' }>
 }): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const recipeRef = useRef<RenderRecipe | null>(null)
+  const [zoomCount, setZoomCount] = useState(0)
+
+  // 영상 메타데이터가 오면(원본 크기 확정) 이벤트 트랙에서 렌더 레시피를 유도한다.
+  const handleMetadata = (): void => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !canvas) return
+    const source: FrameSize = { width: video.videoWidth, height: video.videoHeight }
+    canvas.width = source.width
+    canvas.height = source.height
+    const recipe = deriveRecipe(state.eventTrack, { source })
+    recipeRef.current = recipe
+    setZoomCount(recipe.zoomSegments.length)
+  }
+
+  // 재생 루프: 매 프레임 현재 시각을 샘플링해 카메라 변환을 얻고, 그대로 그린다.
+  useEffect(() => {
+    let raf = 0
+    const tick = (): void => {
+      raf = requestAnimationFrame(tick)
+      const video = videoRef.current
+      const canvas = canvasRef.current
+      const recipe = recipeRef.current
+      if (!video || !canvas || !recipe) return
+      const camera = sampleRecipe(recipe, video.currentTime * 1000)
+      drawSampledFrame(canvas, video, camera, recipe.source)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
 
   return (
     <section className="panel preview">
       <video
         ref={videoRef}
-        className="video"
         src={state.videoUrl}
-        controls
+        onLoadedMetadata={handleMetadata}
         autoPlay
         muted
+        loop
+        playsInline
+        style={{ display: 'none' }}
       />
+      <canvas ref={canvasRef} className="preview-canvas" />
       <dl className="meta">
         <div>
           <dt>길이</dt>
           <dd>{formatElapsed(state.durationMs)}</dd>
+        </div>
+        <div>
+          <dt>자동 줌</dt>
+          <dd>{zoomCount}개 구간 (클릭에서 자동 생성)</dd>
         </div>
         <div>
           <dt>이벤트 트랙</dt>
@@ -97,6 +143,25 @@ function PreviewView({
       </button>
     </section>
   )
+}
+
+/**
+ * 미리보기 렌더링 층 — 효과 계산을 하지 않는다. 샘플링된 카메라 변환(camera)이
+ * 지정한 원본 영역을 캔버스에 그리기만 한다.
+ */
+function drawSampledFrame(
+  canvas: HTMLCanvasElement,
+  video: HTMLVideoElement,
+  camera: CameraTransform,
+  source: FrameSize
+): void {
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const viewW = source.width / camera.scale
+  const viewH = source.height / camera.scale
+  const sx = camera.x - viewW / 2
+  const sy = camera.y - viewH / 2
+  ctx.drawImage(video, sx, sy, viewW, viewH, 0, 0, canvas.width, canvas.height)
 }
 
 function ErrorView({

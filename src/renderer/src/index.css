@@ -103,11 +103,12 @@ body {
   align-items: stretch;
 }
 
-.video {
+.preview-canvas {
   width: 100%;
+  height: auto;
+  display: block;
   border-radius: 12px;
   background: black;
-  aspect-ratio: 16 / 9;
 }
 
 .meta {

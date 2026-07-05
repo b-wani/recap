@@ -9,6 +9,7 @@ import {
   SidecarProtocolError,
   type SidecarMessage
 } from './sidecar/protocol'
+import type { EventTrack } from '../shared/event-track'
 
 /**
  * 사이드카 프로세스의 수명주기를 관리한다. 본체 쪽에서 사이드카 프로토콜 계약을
@@ -23,6 +24,8 @@ export interface RecordingResult {
   videoPath: string
   /** 이벤트 트랙 파일(events.json) 절대 경로. 원본과 분리 저장된다. */
   eventsPath: string
+  /** 이벤트 트랙 자체 — 렌더러가 자동 효과(줌) 유도의 입력으로 쓴다. */
+  eventTrack: EventTrack
   durationMs: number
   eventCount: number
 }
@@ -135,6 +138,7 @@ export class Recorder {
       folder: this.folder,
       videoPath: outcome.recording.rawVideoPath,
       eventsPath,
+      eventTrack: outcome.eventTrack,
       durationMs: outcome.recording.durationMs,
       eventCount: outcome.eventTrack.samples.length
     })

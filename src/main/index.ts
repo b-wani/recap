@@ -88,7 +88,8 @@ function registerIpc(): void {
           videoUrl: mediaUrl(result.videoPath),
           folder: result.folder,
           durationMs: result.durationMs,
-          eventCount: result.eventCount
+          eventCount: result.eventCount,
+          eventTrack: result.eventTrack
         })
       }
     })
