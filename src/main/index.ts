@@ -1,4 +1,14 @@
-import { app, shell, clipboard, BrowserWindow, ipcMain, protocol, net } from 'electron'
+import {
+  app,
+  shell,
+  clipboard,
+  BrowserWindow,
+  ipcMain,
+  protocol,
+  net,
+  systemPreferences,
+  desktopCapturer
+} from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { writeFile } from 'node:fs/promises'
@@ -44,6 +54,28 @@ function sendState(state: RecordingState): void {
   mainWindow?.webContents.send(IpcChannel.State, state)
 }
 
+const PERMISSION_MESSAGE =
+  '화면 녹화 권한이 필요합니다. 시스템 설정 > 개인정보 보호 및 보안 > 화면 기록에서 ' +
+  '이 앱(개발 중에는 "Electron")을 허용한 뒤 앱을 다시 시작하세요.'
+
+/**
+ * 화면 녹화 권한을 보장한다. 사이드카는 Electron의 자식 프로세스라 TCC 책임
+ * 프로세스가 Electron이며, Electron이 권한을 받아야 사이드카가 캡처할 수 있다.
+ * 권한이 없으면 사이드카의 SCShareableContent 호출이 프롬프트를 기다리며 무한
+ * 대기해 조용히 멈춘다 — 그래서 사이드카를 띄우기 전에 여기서 먼저 막는다.
+ */
+async function ensureScreenAccess(): Promise<boolean> {
+  if (process.platform !== 'darwin') return true
+  if (systemPreferences.getMediaAccessStatus('screen') === 'granted') return true
+  // OS가 이 앱을 '화면 기록' 목록에 등록하고 프롬프트를 띄우도록 유도한다(최선의 시도).
+  try {
+    await desktopCapturer.getSources({ types: ['screen'] })
+  } catch {
+    // 프롬프트 유도가 목적이라 결과는 쓰지 않는다.
+  }
+  return systemPreferences.getMediaAccessStatus('screen') === 'granted'
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 900,
@@ -72,11 +104,21 @@ function createWindow(): void {
 
 function registerIpc(): void {
   ipcMain.handle(IpcChannel.ListTargets, async () => {
+    if (!(await ensureScreenAccess())) throw new Error(PERMISSION_MESSAGE)
     return recorder.listTargets()
   })
 
   ipcMain.handle(IpcChannel.Start, async (_e, targetId: string) => {
     if (recorder.isRecording) return
+
+    if (!(await ensureScreenAccess())) {
+      // 조용히 멈추지 않고 안내한다 — 화면 기록 설정 창을 열어준다.
+      shell.openExternal(
+        'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+      )
+      sendState({ status: 'error', code: 'permission-denied', message: PERMISSION_MESSAGE })
+      return
+    }
 
     // 이벤트마다 상태를 밀면 마우스 이동에서 폭주하므로 카운트 갱신은 스로틀한다.
     let lastPush = 0
