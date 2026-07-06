@@ -170,7 +170,10 @@ case "record":
     sigterm.resume()
 
     session.run()
-    RunLoop.main.run()
+    // 전역 마우스·키 모니터(NSEvent.addGlobalMonitorForEvents)는 AppKit 이벤트 루프가
+    // 돌아야 콜백을 받는다 — RunLoop.main.run()만으로는 이벤트가 오지 않아 이벤트 트랙이
+    // 항상 비고(커서·자동 줌·키 오버레이가 죽는다), NSApplication.run()으로 돌려야 한다.
+    NSApplication.shared.run()
 
 default:
     FileHandle.standardError.write(Data("usage:\n  devscreen-capture list\n  devscreen-capture record --out <dir> --target <id>\n".utf8))
