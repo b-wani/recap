@@ -71,7 +71,8 @@ function validateRecipe(raw: unknown): RenderRecipe {
     source: { width: source.width, height: source.height },
     zoomScale: r.zoomScale,
     durationMs: r.durationMs,
-    zoomSegments: r.zoomSegments.map(validateSegment),
+    // v1 레시피는 구간 배율이 없다 — 저장된 전역 배율로 채운다(스토리 25).
+    zoomSegments: r.zoomSegments.map((s) => validateSegment(s, r.zoomScale as number)),
     cursor: validateCursor(r.cursor),
     trim: validateTrim(r.trim),
     background: validateBackground(r.background),
@@ -129,7 +130,7 @@ function isCursorKind(v: unknown): v is CursorKind {
   return typeof v === 'string' && (CURSOR_KINDS as readonly string[]).includes(v)
 }
 
-function validateSegment(raw: unknown): ZoomSegment {
+function validateSegment(raw: unknown, defaultScale: number): ZoomSegment {
   const s = asObject(raw, 'zoomSegment')
   if (!isNum(s.startMs) || !isNum(s.fullInAtMs) || !isNum(s.holdEndMs) || !isNum(s.endMs)) {
     throw new RecipeParseError('zoomSegment: 시간 지점 누락')
@@ -140,6 +141,8 @@ function validateSegment(raw: unknown): ZoomSegment {
     fullInAtMs: s.fullInAtMs,
     holdEndMs: s.holdEndMs,
     endMs: s.endMs,
+    // 구간 배율이 없으면(v1) 전역 배율로 채운다.
+    scale: isNum(s.scale) ? s.scale : defaultScale,
     keyframes: s.keyframes.map(validateKeyframe)
   }
 }

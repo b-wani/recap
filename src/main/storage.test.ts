@@ -26,7 +26,7 @@ const recipe: RenderRecipe = {
   zoomScale: 2,
   durationMs: 5000,
   zoomSegments: [
-    { startMs: 500, fullInAtMs: 1000, holdEndMs: 3000, endMs: 3500, keyframes: [{ t: 1000, x: 400, y: 300 }] }
+    { startMs: 500, fullInAtMs: 1000, holdEndMs: 3000, endMs: 3500, scale: 2, keyframes: [{ t: 1000, x: 400, y: 300 }] }
   ],
   cursor: {
     keyframes: [{ t: 1000, x: 400, y: 300, cursor: 'arrow' }],

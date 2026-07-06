@@ -50,6 +50,40 @@ describe('레시피 직렬화 왕복: 저장 → 로드 후 동일한 샘플링 
   })
 })
 
+describe('v1 레시피 하위호환: 구간 배율 (#23)', () => {
+  it('구간 배율이 없는 v1 레시피를 로드하면 저장된 전역 배율로 채워진다 (스토리 25)', () => {
+    // v1 형태 — zoomSegments에 scale 필드가 없다.
+    const v1 = {
+      formatVersion: 1,
+      recipe: {
+        source,
+        zoomScale: 2.5,
+        durationMs: 5000,
+        zoomSegments: [
+          { startMs: 500, fullInAtMs: 1000, holdEndMs: 3000, endMs: 3500, keyframes: [{ t: 1000, x: 400, y: 300 }] }
+        ],
+        cursor: { keyframes: [{ t: 1000, x: 400, y: 300, cursor: 'pointer' }], clicks: [] },
+        trim: { startMs: 0, endMs: 5000 },
+        background: { color: '#1c1c1e', padding: 0.06 },
+        badge: { visible: true }
+      }
+    }
+    const restored = parseRecipe(JSON.stringify(v1))
+    // 구간 배율이 전역 배율(2.5)로 채워진다.
+    expect(restored.zoomSegments[0].scale).toBe(2.5)
+  })
+
+  it('저장된 구간 배율이 왕복 후 그대로 복원된다', () => {
+    const perSegment = {
+      ...recipe,
+      zoomSegments: recipe.zoomSegments.map((s, i) => ({ ...s, scale: i === 0 ? 1.5 : 2.5 }))
+    }
+    const restored = parseRecipe(serializeRecipe(perSegment))
+    expect(restored.zoomSegments.map((s) => s.scale)).toEqual([1.5, 2.5])
+    expect(restored).toEqual(perSegment)
+  })
+})
+
 describe('레시피 파싱 검증', () => {
   it('JSON이 아니면 던진다', () => {
     expect(() => parseRecipe('not json')).toThrow(RecipeParseError)

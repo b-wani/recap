@@ -88,4 +88,32 @@ describe('레시피 샘플링: (렌더 레시피, 시각 t) → 카메라 변환
     expect(end.x).toBeCloseTo(700, 10)
     expect(end.y).toBeCloseTo(550, 10)
   })
+
+  it('샘플링은 구간마다 그 구간의 배율로 램프를 계산한다 (#23)', () => {
+    // 구간0은 1.5x, 구간1은 2.5x로 서로 다르게 당긴다.
+    const perSegment: typeof recipe = {
+      ...recipe,
+      zoomSegments: [
+        { ...recipe.zoomSegments[0], scale: 1.5 },
+        { ...recipe.zoomSegments[1], scale: 2.5 }
+      ]
+    }
+    // 구간0 완전 줌인(t=1000): 배율 1.5.
+    expect(sampleRecipe(perSegment, 1000).scale).toBe(1.5)
+    // 구간1 완전 줌인(t=8000): 배율 2.5.
+    expect(sampleRecipe(perSegment, 8000).scale).toBe(2.5)
+  })
+
+  it('구간 배율은 그 구간 기준으로 클램핑된다 (#23)', () => {
+    // 구간1 클릭 (800,600). 배율 1.5에서는 가시 뷰가 더 넓어(667×533) 클램핑 경계가 달라진다.
+    const perSegment: typeof recipe = {
+      ...recipe,
+      zoomSegments: [recipe.zoomSegments[0], { ...recipe.zoomSegments[1], scale: 1.5 }]
+    }
+    const cam = sampleRecipe(perSegment, 8000)
+    expect(cam.scale).toBe(1.5)
+    // halfW = 1000/1.5/2 ≈ 333.3 → x 상한 1000-333.3 = 666.7; halfH = 800/1.5/2 ≈ 266.7 → y 상한 533.3.
+    expect(cam.x).toBeCloseTo(1000 - 1000 / 1.5 / 2, 6)
+    expect(cam.y).toBeCloseTo(800 - 800 / 1.5 / 2, 6)
+  })
 })
