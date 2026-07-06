@@ -47,6 +47,8 @@ function timestampFolderName(now: Date): string {
 
 export class Recorder {
   private child: ChildProcessWithoutNullStreams | null = null
+  private starting = false
+  private listing: Promise<CaptureTarget[]> | null = null
   private messages: SidecarMessage[] = []
   private folder = ''
   private eventCount = 0
@@ -55,14 +57,29 @@ export class Recorder {
   constructor(private readonly sidecarPath: string) {}
 
   get isRecording(): boolean {
-    return this.child !== null
+    return this.starting || this.child !== null
   }
 
   /**
    * 선택 가능한 캡처 대상(전체 화면 + 열린 창)을 사이드카에게 물어본다.
    * 사이드카를 `list` 모드로 한 번 띄워 targets 메시지 한 줄을 받고 종료시킨다.
+   *
+   * 동시 호출은 사이드카 하나를 공유한다 — 사이드카(ScreenCaptureKit 클라이언트)가
+   * 동시에 2개 뜨면 replayd 경합으로 한쪽이 응답 없이 매달리고, 그 잔류 프로세스가
+   * 이후 record 세션까지 막는다 (dev에서는 StrictMode 이중 마운트가 항상 유발했다).
    */
   listTargets(): Promise<CaptureTarget[]> {
+    if (this.listing) return this.listing
+    const listing = this.spawnListTargets()
+    this.listing = listing
+    const clear = (): void => {
+      if (this.listing === listing) this.listing = null
+    }
+    listing.then(clear, clear)
+    return listing
+  }
+
+  private spawnListTargets(): Promise<CaptureTarget[]> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.sidecarPath, ['list'], { stdio: ['ignore', 'pipe', 'pipe'] })
       let settled = false
@@ -98,18 +115,26 @@ export class Recorder {
 
   /** 사이드카를 띄우고 지정한 대상(전체 화면 또는 특정 창)의 녹화를 시작한다. */
   async start(targetId: string, cb: RecorderCallbacks, now = new Date()): Promise<void> {
-    if (this.child) throw new Error('이미 녹화 중입니다')
+    // child 할당 전(mkdir await 중)의 중복 호출도 막는다 — record 사이드카가 동시에
+    // 2개 뜨면 listTargets와 같은 replayd 경합으로 매달린다.
+    if (this.isRecording) throw new Error('이미 녹화 중입니다')
+    this.starting = true
 
-    this.messages = []
-    this.eventCount = 0
-    this.finalized = false
-    this.folder = join(recordingsBaseDir(), timestampFolderName(now))
-    await mkdir(this.folder, { recursive: true })
+    let child: ChildProcessWithoutNullStreams
+    try {
+      this.messages = []
+      this.eventCount = 0
+      this.finalized = false
+      this.folder = join(recordingsBaseDir(), timestampFolderName(now))
+      await mkdir(this.folder, { recursive: true })
 
-    const child = spawn(this.sidecarPath, ['record', '--out', this.folder, '--target', targetId], {
-      stdio: ['pipe', 'pipe', 'pipe']
-    })
-    this.child = child
+      child = spawn(this.sidecarPath, ['record', '--out', this.folder, '--target', targetId], {
+        stdio: ['pipe', 'pipe', 'pipe']
+      })
+      this.child = child
+    } finally {
+      this.starting = false
+    }
 
     const rl = createInterface({ input: child.stdout })
     rl.on('line', (line) => {
