@@ -225,6 +225,22 @@ body {
   width: 140px;
 }
 
+.scale-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-scale {
+  padding: 8px 16px;
+  font-size: 14px;
+  background: #3a3a3c;
+}
+
+.btn-scale.is-active {
+  background: #0a84ff;
+  color: white;
+}
+
 .timeline {
   width: 100%;
   user-select: none;

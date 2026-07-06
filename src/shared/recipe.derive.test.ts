@@ -95,4 +95,17 @@ describe('자동 효과 유도: 이벤트 트랙 → 렌더 레시피', () => {
     const recipe = deriveRecipe(loadTrack('event-track-clicks.json'), { source })
     expect(recipe.zoomScale).toBe(2.0)
   })
+
+  it('각 줌 구간이 전역 배율을 기본 배율로 갖는다 (#23)', () => {
+    const recipe = deriveRecipe(loadTrack('event-track-clicks.json'), { source, zoomScale: 2.5 })
+    expect(recipe.zoomSegments).toHaveLength(2)
+    for (const seg of recipe.zoomSegments) expect(seg.scale).toBe(2.5)
+  })
+
+  it('전역 배율 변경이 각 구간 기본값에 반영된다 (#23)', () => {
+    const at15 = deriveRecipe(loadTrack('event-track-clicks.json'), { source, zoomScale: 1.5 })
+    const at20 = deriveRecipe(loadTrack('event-track-clicks.json'), { source })
+    expect(at15.zoomSegments.every((s) => s.scale === 1.5)).toBe(true)
+    expect(at20.zoomSegments.every((s) => s.scale === 2.0)).toBe(true)
+  })
 })

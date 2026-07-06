@@ -43,6 +43,11 @@ export interface ZoomSegment {
   holdEndMs: number
   /** 완전 줌아웃이 끝나는 시각 (ms). */
   endMs: number
+  /**
+   * 이 구간의 확대 배율. 유도 시 전역 `zoomScale`로 채워지며, 에디터에서 구간마다
+   * 달리 조절할 수 있다(1.5/2.0/2.5). 샘플링은 전역이 아닌 이 값으로 램프를 계산한다.
+   */
+  scale: number
   /** 구간 내 클릭들의 카메라 중심 키프레임 (시간순). 유지 중 이 사이를 팬한다. */
   keyframes: PanKeyframe[]
 }
@@ -192,6 +197,8 @@ export interface DeriveConfig {
 export const ZOOM_DEFAULTS = {
   /** 기본 배율 (SPEC 6: 1.5/2.0/2.5, 기본 2.0). */
   scale: 2.0,
+  /** 선택 가능한 이산 배율 (전역·구간 공통). setZoomSegmentScale이 이 중 가장 가까운 값으로 스냅한다. */
+  scales: [1.5, 2.0, 2.5] as readonly number[],
   /** 클릭 rampInMs 전부터 줌인 시작 (SPEC 2: 0.5초 전). */
   rampInMs: 500,
   /** 마지막 활동 holdAfterMs 후 줌아웃 시작 (SPEC 5: 2초 후). */
@@ -249,6 +256,8 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
       fullInAtMs: first.t,
       holdEndMs: last.t + ZOOM_DEFAULTS.holdAfterMs,
       endMs: last.t + ZOOM_DEFAULTS.holdAfterMs + ZOOM_DEFAULTS.rampOutMs,
+      // 유도 시점의 전역 배율을 이 구간의 기본 배율로 삼는다. 이후 에디터에서 구간별로 바꾼다.
+      scale: zoomScale,
       keyframes: panKeyframes(group, zoomScale, source)
     })
     group = []
@@ -322,19 +331,19 @@ export function sampleRecipe(recipe: RenderRecipe, t: number): CameraTransform {
   let center: { x: number; y: number }
 
   if (t < seg.fullInAtMs) {
-    // 줌인 ramp: scale 1 → zoomScale, 중심은 첫 클릭.
+    // 줌인 ramp: scale 1 → seg.scale, 중심은 첫 클릭.
     const p = seg.fullInAtMs > seg.startMs ? (t - seg.startMs) / (seg.fullInAtMs - seg.startMs) : 1
-    scale = 1 + (recipe.zoomScale - 1) * ease(p)
+    scale = 1 + (seg.scale - 1) * ease(p)
     const k = seg.keyframes[0]
     center = { x: k.x, y: k.y }
   } else if (t <= seg.holdEndMs) {
     // 유지: 완전 줌인 상태로 클릭 키프레임 사이를 팬(SPEC 팬).
-    scale = recipe.zoomScale
+    scale = seg.scale
     center = panAt(seg.keyframes, t)
   } else {
-    // 줌아웃 ramp: scale zoomScale → 1, 중심은 마지막 클릭.
+    // 줌아웃 ramp: scale seg.scale → 1, 중심은 마지막 클릭.
     const p = seg.endMs > seg.holdEndMs ? (t - seg.holdEndMs) / (seg.endMs - seg.holdEndMs) : 1
-    scale = 1 + (recipe.zoomScale - 1) * (1 - ease(p))
+    scale = 1 + (seg.scale - 1) * (1 - ease(p))
     const k = seg.keyframes[seg.keyframes.length - 1]
     center = { x: k.x, y: k.y }
   }

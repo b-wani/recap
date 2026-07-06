@@ -3,6 +3,7 @@ import type { CaptureTarget, RecordingState, RecordingSummary } from '../../shar
 import {
   deriveRecipe,
   sampleComposition,
+  ZOOM_DEFAULTS,
   type FrameSize,
   type RenderRecipe
 } from '../../shared/recipe'
@@ -10,6 +11,7 @@ import {
   deleteZoomSegment,
   moveZoomSegment,
   resizeZoomSegment,
+  setZoomSegmentScale,
   trimRecipe,
   trimmedDurationMs,
   type ZoomEdge
@@ -290,6 +292,23 @@ function PreviewView({
           onSelect={setSelected}
           onChange={setRecipe}
         />
+      )}
+      {recipe && selected !== null && recipe.zoomSegments[selected] && (
+        <fieldset className="controls">
+          <legend>줌 구간 #{selected + 1} 배율</legend>
+          <div className="scale-buttons">
+            {ZOOM_DEFAULTS.scales.map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`btn btn-scale${recipe.zoomSegments[selected].scale === s ? ' is-active' : ''}`}
+                onClick={() => setRecipe((r) => (r ? setZoomSegmentScale(r, selected, s) : r))}
+              >
+                {s.toFixed(1)}x
+              </button>
+            ))}
+          </div>
+        </fieldset>
       )}
       {recipe && (
         <fieldset className="controls">

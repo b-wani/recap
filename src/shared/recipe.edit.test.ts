@@ -7,6 +7,7 @@ import {
   deleteZoomSegment,
   moveZoomSegment,
   resizeZoomSegment,
+  setZoomSegmentScale,
   trimRecipe,
   trimmedDurationMs
 } from './recipe.edit'
@@ -127,6 +128,57 @@ describe('경량 편집: 줌 구간 길이 조절', () => {
     expect(sampleRecipe(base, 4600).scale).toBeLessThan(2)
     const edited = resizeZoomSegment(base, 0, 'end', 1000)
     expect(sampleRecipe(edited, 4600).scale).toBe(2)
+  })
+})
+
+describe('경량 편집: 구간별 줌 배율 (#23)', () => {
+  it('지정 구간의 배율만 바꾸고 다른 구간은 보존한다', () => {
+    const edited = setZoomSegmentScale(base, 0, 2.5)
+    expect(edited.zoomSegments[0].scale).toBe(2.5)
+    // 구간1은 그대로(유도 시 전역 2.0).
+    expect(edited.zoomSegments[1].scale).toBe(2.0)
+    // 전역 배율은 건드리지 않는다.
+    expect(edited.zoomScale).toBe(base.zoomScale)
+  })
+
+  it('시간 앵커와 팬 키프레임을 보존한다 (배율만 바뀐다)', () => {
+    const edited = setZoomSegmentScale(base, 0, 2.5)
+    const seg = edited.zoomSegments[0]
+    expect(seg.startMs).toBe(500)
+    expect(seg.fullInAtMs).toBe(1000)
+    expect(seg.holdEndMs).toBe(4500)
+    expect(seg.endMs).toBe(5000)
+    expect(seg.keyframes).toEqual(base.zoomSegments[0].keyframes)
+  })
+
+  it('허용 이산값(1.5/2.0/2.5) 중 가장 가까운 값으로 스냅한다', () => {
+    expect(setZoomSegmentScale(base, 0, 2.4).zoomSegments[0].scale).toBe(2.5)
+    expect(setZoomSegmentScale(base, 0, 1.6).zoomSegments[0].scale).toBe(1.5)
+    expect(setZoomSegmentScale(base, 0, 1.9).zoomSegments[0].scale).toBe(2.0)
+    // 범위 밖 값도 가장 가까운 이산값으로 가둔다.
+    expect(setZoomSegmentScale(base, 0, 5).zoomSegments[0].scale).toBe(2.5)
+    expect(setZoomSegmentScale(base, 0, 0.5).zoomSegments[0].scale).toBe(1.5)
+  })
+
+  it('범위 밖 인덱스는 무시한다', () => {
+    expect(setZoomSegmentScale(base, 5, 2.5)).toBe(base)
+    expect(setZoomSegmentScale(base, -1, 2.5)).toBe(base)
+  })
+
+  it('원본 레시피를 변형하지 않는다 (불변)', () => {
+    setZoomSegmentScale(base, 0, 2.5)
+    expect(base.zoomSegments[0].scale).toBe(2.0)
+  })
+
+  it('배율 변경이 샘플링에 반영되고 팬 연결은 유지된다', () => {
+    // 팬 픽스처: 뷰 밖 클릭이 팬으로 이어지는 단일 구간.
+    const panBase = deriveRecipe(loadTrack('event-track-pan.json'), { source })
+    const edited = setZoomSegmentScale(panBase, 0, 1.5)
+    // 완전 줌인 배율이 1.5로 바뀐다.
+    expect(sampleRecipe(edited, 1000).scale).toBe(1.5)
+    expect(sampleRecipe(edited, 2500).scale).toBe(1.5)
+    // 팬 키프레임 개수(카메라 동선)는 유지된다 — 여전히 두 지점 사이를 팬한다.
+    expect(edited.zoomSegments[0].keyframes).toHaveLength(2)
   })
 })
 

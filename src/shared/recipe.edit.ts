@@ -13,7 +13,7 @@
  * 얇은 층이다. 편집 규칙과 경계 처리는 전부 이 모듈 안에 있다.
  */
 
-import type { RenderRecipe, Trim, ZoomSegment } from './recipe'
+import { ZOOM_DEFAULTS, type RenderRecipe, type Trim, type ZoomSegment } from './recipe'
 
 /** 줌 구간 시간 앵커의 최소 간격(ms). 이동·길이 조절이 앵커를 뒤엎지 않게 지킨다. */
 const MIN_SPAN_MS = 1
@@ -48,6 +48,7 @@ export function moveZoomSegment(
   if (shift === 0) return recipe
 
   return replaceSegment(recipe, index, {
+    ...seg,
     startMs: seg.startMs + shift,
     fullInAtMs: seg.fullInAtMs + shift,
     holdEndMs: seg.holdEndMs + shift,
@@ -96,6 +97,35 @@ export function resizeZoomSegment(
     holdEndMs: seg.holdEndMs + shift,
     endMs: seg.endMs + shift
   })
+}
+
+/**
+ * 지정한 줌 구간의 확대 배율을 바꾼다 — 타임라인에서 구간을 골라 배율을 조절하는 조작.
+ *
+ * 허용 이산값(ZOOM_DEFAULTS.scales: 1.5/2.0/2.5) 중 가장 가까운 값으로 스냅하고, 그
+ * 구간의 시간 앵커·팬 키프레임은 그대로 둔다(배율만 바뀌고 카메라 동선은 유지). 다른
+ * 구간과 전역 zoomScale은 건드리지 않는다. 잘못된 index는 무시한다.
+ *
+ * 팬 키프레임을 재계산하지 않는 것은 resizeZoomSegment가 키프레임을 보존하는 것과 같은
+ * 원칙 — 팬 보간이 양끝에 고정하므로 배율이 달라져도 안전하다.
+ */
+export function setZoomSegmentScale(
+  recipe: RenderRecipe,
+  index: number,
+  scale: number
+): RenderRecipe {
+  const seg = recipe.zoomSegments[index]
+  if (!seg) return recipe
+  const snapped = snapScale(scale)
+  if (snapped === seg.scale) return recipe
+  return replaceSegment(recipe, index, { ...seg, scale: snapped })
+}
+
+/** 임의 배율을 허용 이산값 중 가장 가까운 값으로 스냅한다. */
+function snapScale(scale: number): number {
+  return ZOOM_DEFAULTS.scales.reduce((best, s) =>
+    Math.abs(s - scale) < Math.abs(best - scale) ? s : best
+  )
 }
 
 /**
