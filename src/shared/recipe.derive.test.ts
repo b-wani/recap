@@ -147,4 +147,32 @@ describe('자동 효과 유도: 이벤트 트랙 → 렌더 레시피', () => {
     const recipe = deriveRecipe(loadTrack('event-track-clicks.json'), { source })
     expect(recipe.keystrokes.keys).toEqual([])
   })
+
+  it('이벤트 좌표(포인트)를 원본 픽셀 공간으로 정규화한다 (커서·줌 위치 오프셋)', () => {
+    // 사이드카는 좌표를 포인트(대상 논리 크기)로 기록하지만, source는 캡처 픽셀(Retina 2x)이다.
+    // deriveRecipe가 이 배율을 흡수하지 않으면 커서·줌이 절반 위치로 어긋난다.
+    const track: EventTrack = {
+      protocolVersion: 3,
+      startedAt: 0,
+      durationMs: 4000,
+      target: { kind: 'display', id: 'display:1', title: '전체 화면', width: 1440, height: 900 },
+      samples: [
+        { t: 500, kind: 'move', x: 1400, y: 850, cursor: 'arrow' },
+        { t: 1000, kind: 'down', x: 1400, y: 850, cursor: 'pointer' }
+      ]
+    }
+    const recipe = deriveRecipe(track, { source: { width: 2880, height: 1800 } })
+
+    // 줌 키프레임(클릭 중심)이 픽셀 공간으로 스케일된다: 1400×2, 850×2.
+    expect(recipe.zoomSegments[0].keyframes).toEqual([{ t: 1000, x: 2800, y: 1700 }])
+    // 커서 키프레임·클릭 마크도 같은 배율로 스케일된다.
+    expect(recipe.cursor.keyframes).toContainEqual({ t: 1000, x: 2800, y: 1700, cursor: 'pointer' })
+    expect(recipe.cursor.clicks).toEqual([{ t: 1000, x: 2800, y: 1700 }])
+  })
+
+  it('target이 없는 트랙(픽스처)은 좌표를 그대로 둔다 — source와 같은 공간으로 본다', () => {
+    // 테스트 픽스처는 target 없이 좌표를 source 공간에 직접 놓는다. 정규화가 이를 건드리면 안 된다.
+    const recipe = deriveRecipe(loadTrack('event-track-clicks.json'), { source })
+    expect(recipe.zoomSegments[0].keyframes).toEqual([{ t: 1000, x: 400, y: 300 }])
+  })
 })

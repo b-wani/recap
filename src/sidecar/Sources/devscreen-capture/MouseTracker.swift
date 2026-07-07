@@ -9,7 +9,7 @@ final class MouseTracker {
     private let startedAt: TimeInterval
     private let onEvent: (_ kind: String, _ t: Int, _ x: Double, _ y: Double, _ cursor: String) -> Void
 
-    /// 좌상단 원점 변환에 쓰는 전체 데스크톱 높이(포인트).
+    /// AppKit(좌하단 원점) → CoreGraphics(좌상단 원점) y 뒤집기 상수 = 주 화면 높이(포인트).
     private let flipHeight: CGFloat
     /// 캡처 대상의 좌상단 글로벌 좌표(포인트). 전역 좌표에서 이만큼 뺀다.
     private let targetOrigin: CGPoint
@@ -20,7 +20,12 @@ final class MouseTracker {
         self.startedAt = startedAt
         self.targetOrigin = targetOrigin
         self.onEvent = onEvent
-        self.flipHeight = NSScreen.screens.map { $0.frame.maxY }.max() ?? 0
+        // NSEvent.mouseLocation은 AppKit 전역(주 화면 좌하단 원점, y가 위로 증가)이고,
+        // targetOrigin은 ScreenCaptureKit의 CoreGraphics 전역(주 화면 좌상단 원점, y가 아래로 증가)이다.
+        // AppKit y → CG y 변환 상수는 '주 화면(원점 (0,0)) 높이'다. 전체 데스크톱의 max(maxY)를
+        // 쓰면 주 화면 위에 놓인 보조 모니터에서 그 차이만큼 커서 y가 밀린다(멀티 모니터 오프셋).
+        let primary = NSScreen.screens.first { $0.frame.origin == .zero } ?? NSScreen.screens.first
+        self.flipHeight = primary?.frame.height ?? 0
     }
 
     func start() {

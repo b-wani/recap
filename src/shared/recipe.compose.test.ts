@@ -37,6 +37,19 @@ describe('합성 파라미터 샘플링: (렌더 레시피, 시각 t) → 프레
     expect(sampleComposition(wide, 0).badge.label).toBe('2880×1800')
   })
 
+  it('배지 라벨은 target이 있으면 논리 뷰포트(포인트) 크기를 쓴다 — 픽셀 source가 아니다', () => {
+    // 캡처는 Retina 2x라 source는 2880×1800이지만, 배지는 개발자가 보는 뷰포트(1440×900)를 보여야 한다.
+    const track: EventTrack = {
+      protocolVersion: 3,
+      startedAt: 0,
+      durationMs: 4000,
+      target: { kind: 'display', id: 'display:1', title: '전체 화면', width: 1440, height: 900 },
+      samples: [{ t: 1000, kind: 'down', x: 1400, y: 850, cursor: 'pointer' }]
+    }
+    const recipe = deriveRecipe(track, { source: { width: 2880, height: 1800 } })
+    expect(sampleComposition(recipe, 0).badge.label).toBe('1440×900')
+  })
+
   it('배지를 끄면 샘플링 출력에 off가 반영된다', () => {
     const off = { ...recipe, badge: { ...recipe.badge, visible: false } }
     const comp = sampleComposition(off, 0)
