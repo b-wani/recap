@@ -1,13 +1,21 @@
-# dev-screen
+<p align="center">
+  <img src="assets/brand/wordmark.svg" alt="Recap" width="360">
+</p>
 
-웹 프론트엔드 개발 화면을 녹화하고 자동 효과를 입혀 GitHub/티켓에 첨부할 데모 영상을 만드는 macOS 앱. 제품 정의는 [CONTEXT.md](./CONTEXT.md)와 [docs/SPEC.md](./docs/SPEC.md), 스택 결정은 [ADR 0001](./docs/adr/0001-electron-with-swift-capture-sidecar.md) 참고.
+<p align="center">
+  웹 프론트엔드 개발 화면을 녹화하고 자동 효과를 입혀 GitHub·티켓에 첨부할 데모 영상을 만드는 macOS 앱.
+</p>
+
+---
+
+제품 정의는 [CONTEXT.md](./CONTEXT.md)와 [docs/SPEC.md](./docs/SPEC.md), 스택 결정은 [ADR 0001](./docs/adr/0001-electron-with-swift-capture-sidecar.md) 참고.
 
 ## 아키텍처
 
 [ADR 0001](./docs/adr/0001-electron-with-swift-capture-sidecar.md)에 따라 두 층으로 나뉜다:
 
 - **Electron + TypeScript 본체** (`src/main`, `src/preload`, `src/renderer`) — UI, 미리보기, (이후) 효과 렌더링·익스포트.
-- **Swift 캡처 사이드카** (`src/sidecar`) — ScreenCaptureKit으로 원본 영상을 기록하고 마우스 이벤트를 스트리밍하는 CLI. 효과 로직을 넣지 않는 불변층.
+- **Swift 캡처 사이드카** (`src/sidecar`, 바이너리 `recap-capture`) — ScreenCaptureKit으로 원본 영상을 기록하고 마우스 이벤트를 스트리밍하는 CLI. 효과 로직을 넣지 않는 불변층.
 
 두 층의 경계는 [사이드카 프로토콜](./docs/sidecar-protocol.md)로 고정된다.
 

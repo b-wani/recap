@@ -1,1 +1,1 @@
-{"type":"error","code":"permission-denied","message":"화면 녹화 권한이 없습니다. 시스템 설정 > 개인정보 보호 및 보안 > 화면 기록에서 dev-screen을 허용하세요."}
+{"type":"error","code":"permission-denied","message":"화면 녹화 권한이 없습니다. 시스템 설정 > 개인정보 보호 및 보안 > 화면 기록에서 Recap을 허용하세요."}

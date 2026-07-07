@@ -2,12 +2,12 @@ import AppKit
 import Foundation
 import ScreenCaptureKit
 
-/// devscreen-capture — 선택한 대상(전체 화면 또는 특정 창)의 원본을 기록하고 마우스
+/// recap-capture — 선택한 대상(전체 화면 또는 특정 창)의 원본을 기록하고 마우스
 /// 이벤트를 스트리밍하는 CLI 사이드카.
 ///
 /// 사용법:
-///   devscreen-capture list                          선택 가능한 캡처 대상 열거
-///   devscreen-capture record --out <폴더> --target <id>   해당 대상 녹화
+///   recap-capture list                          선택 가능한 캡처 대상 열거
+///   recap-capture record --out <폴더> --target <id>   해당 대상 녹화
 ///     · stdout으로 프로토콜 메시지를 JSONL로 흘린다 (Protocol.swift, docs/sidecar-protocol.md).
 ///     · stdin에 "stop\n"이 오면 (또는 SIGTERM) 녹화를 마무리하고 종료한다.
 ///
@@ -144,7 +144,7 @@ case "list":
 
 case "record":
     guard let outStr = optionValue(args, "--out") else {
-        FileHandle.standardError.write(Data("usage: devscreen-capture record --out <dir> --target <id>\n".utf8))
+        FileHandle.standardError.write(Data("usage: recap-capture record --out <dir> --target <id>\n".utf8))
         exit(64)
     }
     // --target이 없으면 첫 디스플레이(전체 화면)로 시작한다 — 하위호환/기본값.
@@ -176,6 +176,6 @@ case "record":
     NSApplication.shared.run()
 
 default:
-    FileHandle.standardError.write(Data("usage:\n  devscreen-capture list\n  devscreen-capture record --out <dir> --target <id>\n".utf8))
+    FileHandle.standardError.write(Data("usage:\n  recap-capture list\n  recap-capture record --out <dir> --target <id>\n".utf8))
     exit(64)
 }

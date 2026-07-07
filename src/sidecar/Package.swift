@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "devscreen-capture",
+    name: "recap-capture",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "devscreen-capture",
-            path: "Sources/devscreen-capture"
+            name: "recap-capture",
+            path: "Sources/recap-capture"
         )
     ]
 )

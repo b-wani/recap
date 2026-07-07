@@ -12,7 +12,7 @@ ARCH="$(uname -m)"
 swiftc -O \
   -sdk "$(xcrun --show-sdk-path)" \
   -target "${ARCH}-apple-macosx13.0" \
-  "$DIR"/Sources/devscreen-capture/*.swift \
-  -o "$OUT/devscreen-capture"
+  "$DIR"/Sources/recap-capture/*.swift \
+  -o "$OUT/recap-capture"
 
-echo "built: $OUT/devscreen-capture"
+echo "built: $OUT/recap-capture"

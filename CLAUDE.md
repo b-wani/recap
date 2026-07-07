@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-이슈는 GitHub(b-wani/dev-screen) Issues에서 관리한다. 외부 PR은 트리아지 대상이 아니다. See `docs/agents/issue-tracker.md`.
+이슈는 GitHub(b-wani/recap) Issues에서 관리한다. 외부 PR은 트리아지 대상이 아니다. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

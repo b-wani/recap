@@ -9,7 +9,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput {
     private var stream: SCStream?
     private var writer: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
-    private let sampleQueue = DispatchQueue(label: "dev-screen.capture.samples")
+    private let sampleQueue = DispatchQueue(label: "recap.capture.samples")
 
     private var sessionStarted = false
     private var firstPTS: CMTime = .zero
@@ -73,7 +73,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput {
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         input.expectsMediaDataInRealTime = true
         guard writer.canAdd(input) else {
-            throw NSError(domain: "dev-screen", code: 1,
+            throw NSError(domain: "recap", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "AVAssetWriter가 비디오 입력을 받지 못함"])
         }
         writer.add(input)

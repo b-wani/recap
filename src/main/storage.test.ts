@@ -60,7 +60,7 @@ async function makeRecording(name: string, startedAt: number): Promise<string> {
 }
 
 beforeEach(async () => {
-  base = await mkdtemp(join(tmpdir(), 'devscreen-storage-'))
+  base = await mkdtemp(join(tmpdir(), 'recap-storage-'))
 })
 
 afterEach(async () => {

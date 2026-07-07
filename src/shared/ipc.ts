@@ -51,7 +51,7 @@ export type RecordingState =
   | { status: 'recording'; startedAt: number; eventCount: number; target: CaptureTarget }
   | {
       status: 'preview'
-      /** 원본 미리보기 재생용 URL (devscreen-media 프로토콜). */
+      /** 원본 미리보기 재생용 URL (recap-media 프로토콜). */
       videoUrl: string
       folder: string
       durationMs: number

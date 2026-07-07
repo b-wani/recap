@@ -1,4 +1,4 @@
-{"type":"ready","protocolVersion":3,"rawVideoPath":"/Users/dev/Movies/DevScreen/2026-07-06_1030/raw.mp4","startedAt":1751796600000,"target":{"kind":"window","id":"window:47","title":"Safari — GitHub","width":1200,"height":800}}
+{"type":"ready","protocolVersion":3,"rawVideoPath":"/Users/dev/Movies/Recap/2026-07-06_1030/raw.mp4","startedAt":1751796600000,"target":{"kind":"window","id":"window:47","title":"Safari — GitHub","width":1200,"height":800}}
 {"type":"event","kind":"move","t":120,"x":400,"y":300,"cursor":"arrow"}
 {"type":"event","kind":"down","t":300,"x":420,"y":310,"cursor":"pointer"}
 {"type":"event","kind":"up","t":360,"x":420,"y":310,"cursor":"pointer"}
@@ -6,4 +6,4 @@
 {"type":"key","t":1600,"combo":"⌥⌘I"}
 {"type":"key","t":2400,"combo":"Enter"}
 {"type":"key","t":2900,"combo":"Esc"}
-{"type":"stopped","rawVideoPath":"/Users/dev/Movies/DevScreen/2026-07-06_1030/raw.mp4","durationMs":3500,"eventCount":3}
+{"type":"stopped","rawVideoPath":"/Users/dev/Movies/Recap/2026-07-06_1030/raw.mp4","durationMs":3500,"eventCount":3}

@@ -1,19 +1,19 @@
 # 사이드카 프로토콜 (v3)
 
-Swift 캡처 사이드카(`devscreen-capture`)와 Electron 본체 사이의 계약. [ADR 0001](./adr/0001-electron-with-swift-capture-sidecar.md)에 따라 사이드카는 "한 번 만들면 안 건드리는" 층이며, 이 계약은 그 경계를 명시적으로 고정한다. 효과 로직은 이 경계 어디에도 없다 — 사이드카는 **원본 영상 기록**과 **마우스·키 이벤트 스트리밍**만 한다. 키 오버레이 계산은 전부 순수 코어(`recipe.ts`)에서 하며, 사이드카는 정규화된 조합 문자열만 흘린다.
+Swift 캡처 사이드카(`recap-capture`)와 Electron 본체 사이의 계약. [ADR 0001](./adr/0001-electron-with-swift-capture-sidecar.md)에 따라 사이드카는 "한 번 만들면 안 건드리는" 층이며, 이 계약은 그 경계를 명시적으로 고정한다. 효과 로직은 이 경계 어디에도 없다 — 사이드카는 **원본 영상 기록**과 **마우스·키 이벤트 스트리밍**만 한다. 키 오버레이 계산은 전부 순수 코어(`recipe.ts`)에서 하며, 사이드카는 정규화된 조합 문자열만 흘린다.
 
 계약의 코드 표현:
 
 - 본체(소비자): [`src/main/sidecar/protocol.ts`](../src/main/sidecar/protocol.ts) — 타입·파서·접기 함수, 계약 테스트(`protocol.test.ts`)로 검증.
-- 사이드카(생산자): [`src/sidecar/Sources/devscreen-capture/Protocol.swift`](../src/sidecar/Sources/devscreen-capture/Protocol.swift).
+- 사이드카(생산자): [`src/sidecar/Sources/recap-capture/Protocol.swift`](../src/sidecar/Sources/recap-capture/Protocol.swift).
 
 두 구현은 아래 스키마를 공유하며, `protocolVersion`이 어긋나면 본체가 세션을 거부한다.
 
 ## 실행 · 전송
 
 ```
-devscreen-capture list                                 선택 가능한 캡처 대상 열거
-devscreen-capture record --out <녹화 폴더> --target <id>   해당 대상 녹화
+recap-capture list                                     선택 가능한 캡처 대상 열거
+recap-capture record --out <녹화 폴더> --target <id>     해당 대상 녹화
 ```
 
 - **캡처 대상 선택**: 녹화 전 본체는 `list`로 사이드카를 한 번 띄워 선택지(전체 화면 디스플레이 + 열린 창)를 받고, 사용자가 고른 대상의 `id`를 `record --target <id>`로 넘긴다. `--target`이 없으면 주 디스플레이(전체 화면)로 시작한다.

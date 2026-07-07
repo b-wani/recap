@@ -1,7 +1,7 @@
-import type { DevScreenApi } from './index'
+import type { RecapApi } from './index'
 
 declare global {
   interface Window {
-    devScreen: DevScreenApi
+    recap: RecapApi
   }
 }

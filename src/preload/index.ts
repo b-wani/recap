@@ -44,6 +44,6 @@ const api = {
     ipcRenderer.invoke(IpcChannel.ExportCopyPath, path)
 }
 
-contextBridge.exposeInMainWorld('devScreen', api)
+contextBridge.exposeInMainWorld('recap', api)
 
-export type DevScreenApi = typeof api
+export type RecapApi = typeof api

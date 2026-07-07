@@ -58,7 +58,7 @@ describe('사이드카 프로토콜 계약', () => {
 
     // 녹화 참조 — 원본 영상 파일과 녹화된 대상을 가리킨다.
     expect(outcome.recording).toEqual({
-      rawVideoPath: '/Users/dev/Movies/DevScreen/2026-07-05_1530/raw.mp4',
+      rawVideoPath: '/Users/dev/Movies/Recap/2026-07-05_1530/raw.mp4',
       startedAt: 1751710200000,
       durationMs: 1500,
       target

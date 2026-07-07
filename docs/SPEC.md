@@ -1,4 +1,4 @@
-# dev-screen v1 스펙
+# Recap v1 스펙
 
 > 2026-07-04 그릴링 세션에서 확정. 용어는 [CONTEXT.md](../CONTEXT.md), 스택 결정 배경은 [ADR 0001](./adr/0001-electron-with-swift-capture-sidecar.md) 참고.
 
@@ -63,7 +63,7 @@ Before/After 비교 렌더링, 키 입력 오버레이, 브랜치/커밋 배지,
 
 ## 저장 모델
 
-- 프로젝트 = 폴더 번들: `~/Movies/DevScreen/{YYYY-MM-DD_HHmm}/`
+- 프로젝트 = 폴더 번들: `~/Movies/Recap/{YYYY-MM-DD_HHmm}/`
   - `raw.mp4` — 원본 영상
   - `events.json` — 이벤트 트랙
   - `recipe.json` — 렌더 레시피
