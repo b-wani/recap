@@ -15,7 +15,7 @@
  * 튜닝 수치(배율·이징·타이밍·스무딩 강도·배경/패딩 기본값)는 여기 상수로 모은다.
  */
 
-import type { CursorKind, EventTrack, KeySample, MouseSample } from './event-track'
+import type { CaptureTarget, CursorKind, EventTrack, KeySample, MouseSample } from './event-track'
 
 /** 원본 프레임 크기(px). 카메라 클램핑의 기준이 된다. */
 export interface FrameSize {
@@ -127,6 +127,12 @@ export interface BadgeConfig {
  */
 export interface RenderRecipe {
   source: FrameSize
+  /**
+   * 논리 뷰포트 크기(포인트) — 배지가 표시하는 "녹화된 화면 크기"(예: 1440×900).
+   * source는 캡처 픽셀(Retina 2x)이라 배지 라벨로는 부적절하다. 대상 정보 없이 유도한
+   * 레시피(테스트 픽스처)나 v1 저장본에는 없으며, 그 경우 배지는 source로 폴백한다.
+   */
+  viewport?: FrameSize
   /** 전역 줌 배율 (1 = 확대 없음). */
   zoomScale: number
   durationMs: number
@@ -276,6 +282,23 @@ export const COMPOSITE_DEFAULTS = {
 } as const
 
 /**
+ * 이벤트 좌표(포인트)를 원본 픽셀 공간으로 정규화한다. 배율은 source와 대상 논리 크기의
+ * 비율(캡처 Retina 배율)이다. target이 없으면(테스트 픽스처) 좌표가 이미 source 공간에
+ * 있다고 보고 그대로 둔다.
+ */
+function scaleSamplesToSource(
+  samples: MouseSample[],
+  target: CaptureTarget | undefined,
+  source: FrameSize
+): MouseSample[] {
+  if (!target || target.width === 0 || target.height === 0) return samples
+  const sx = source.width / target.width
+  const sy = source.height / target.height
+  if (sx === 1 && sy === 1) return samples
+  return samples.map((s) => ({ ...s, x: s.x * sx, y: s.y * sy }))
+}
+
+/**
  * 자동 효과 유도: 이벤트 트랙의 클릭(down)으로부터 줌 구간 목록을 만든다.
  * mergeGapMs 이내로 이어지는 클릭들은 한 구간으로 묶여(SPEC 4) 그 사이를 팬한다.
  */
@@ -283,7 +306,13 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
   const zoomScale = config.zoomScale ?? ZOOM_DEFAULTS.scale
   const source = config.source
 
-  const clicks = track.samples
+  // 이벤트 좌표는 대상의 논리 크기(포인트) 기준인데 source는 캡처 픽셀(Retina 2x)이다.
+  // 렌더 파이프라인(카메라·클램프·커서·compose)은 전부 source 공간을 가정하므로,
+  // 여기서 포인트→픽셀 배율을 한 번 흡수한다. target이 없는 트랙(픽스처)은 좌표가 이미
+  // source 공간에 있다고 보고 배율 1을 쓴다.
+  const samples = scaleSamplesToSource(track.samples, track.target, source)
+
+  const clicks = samples
     .filter((s): s is MouseSample => s.kind === 'down')
     .sort((a, b) => a.t - b.t)
 
@@ -314,7 +343,7 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
   flush()
 
   // 커서 트랙: 모든 이벤트를 시간순 위치 키프레임으로, 클릭은 하이라이트용으로 담는다.
-  const keyframes: CursorKeyframe[] = [...track.samples]
+  const keyframes: CursorKeyframe[] = [...samples]
     .sort((a, b) => a.t - b.t)
     .map((s) => ({ t: s.t, x: s.x, y: s.y, cursor: s.cursor }))
   const cursor: CursorTrack = {
@@ -324,6 +353,10 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
 
   return {
     source: { width: source.width, height: source.height },
+    // 배지가 표시할 논리 뷰포트 크기(포인트). 대상이 있으면 그 논리 크기를 담는다.
+    ...(track.target && {
+      viewport: { width: track.target.width, height: track.target.height }
+    }),
     zoomScale,
     durationMs: track.durationMs,
     zoomSegments,
@@ -421,10 +454,12 @@ export function sampleFrame(recipe: RenderRecipe, t: number): FrameSample {
 /**
  * 합성 파라미터 샘플링: 시각 t에서 프레임 하나를 합성하는 데 필요한 값 전체를 낸다.
  * 프레임 샘플(카메라·커서·클릭, 트림 반영)에 레시피의 배경/패딩·배지를 더한다. 배지
- * 라벨은 녹화된 화면 크기(source)에서 유도하므로, 미리보기와 익스포트가 같은 문자열을 그린다.
+ * 라벨은 논리 뷰포트 크기(viewport, 포인트)에서 유도하므로, 미리보기와 익스포트가 같은
+ * 문자열을 그린다. viewport가 없으면(픽스처·v1 저장본) source로 폴백한다.
  */
 export function sampleComposition(recipe: RenderRecipe, t: number): FrameComposition {
   const frame = sampleFrame(recipe, t)
+  const viewport = recipe.viewport ?? recipe.source
   return {
     camera: frame.camera,
     cursor: frame.cursor,
@@ -432,7 +467,7 @@ export function sampleComposition(recipe: RenderRecipe, t: number): FrameComposi
     background: recipe.background,
     badge: {
       visible: recipe.badge.visible,
-      label: `${recipe.source.width}×${recipe.source.height}`,
+      label: `${viewport.width}×${viewport.height}`,
       contextLabel: recipe.badge.contextLabel
     },
     keyOverlay: sampleKeyOverlay(recipe, t)

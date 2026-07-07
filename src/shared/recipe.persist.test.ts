@@ -25,6 +25,20 @@ describe('레시피 직렬화 왕복: 저장 → 로드 후 동일한 샘플링 
     expect(typeof recipe.badge.visible).toBe('boolean')
   })
 
+  it('논리 뷰포트(target 유래)가 왕복 후 보존되어 배지 라벨이 유지된다', () => {
+    const track: EventTrack = {
+      protocolVersion: 3,
+      startedAt: 0,
+      durationMs: 4000,
+      target: { kind: 'display', id: 'display:1', title: '전체 화면', width: 1440, height: 900 },
+      samples: [{ t: 1000, kind: 'down', x: 1400, y: 850, cursor: 'pointer' }]
+    }
+    const withViewport = deriveRecipe(track, { source: { width: 2880, height: 1800 } })
+    const restored = parseRecipe(serializeRecipe(withViewport))
+    expect(restored.viewport).toEqual({ width: 1440, height: 900 })
+    expect(sampleComposition(restored, 0).badge.label).toBe('1440×900')
+  })
+
   it('왕복 후 타임라인 전 구간에서 합성 샘플링 출력이 동일하다 (카메라·커서·클릭·배경·배지)', () => {
     const restored = parseRecipe(serializeRecipe(recipe))
     // 줌인·유지·팬·줌아웃·구간 밖을 모두 지나도록 촘촘히 샘플링한다.

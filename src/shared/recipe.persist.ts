@@ -14,6 +14,7 @@ import type {
   ClickMark,
   CursorKeyframe,
   CursorTrack,
+  FrameSize,
   KeystrokeTrack,
   PanKeyframe,
   RenderRecipe,
@@ -71,6 +72,8 @@ function validateRecipe(raw: unknown): RenderRecipe {
 
   return {
     source: { width: source.width, height: source.height },
+    // 논리 뷰포트(포인트)는 선택적 — v1 저장본엔 없다. 있으면 검증해 보존한다.
+    ...(r.viewport !== undefined && { viewport: validateViewport(r.viewport) }),
     zoomScale: r.zoomScale,
     durationMs: r.durationMs,
     // v1 레시피는 구간 배율이 없다 — 저장된 전역 배율로 채운다(스토리 25).
@@ -131,6 +134,14 @@ function validateClickMark(raw: unknown): ClickMark {
     throw new RecipeParseError('clickMark: t/x/y 누락')
   }
   return { t: c.t, x: c.x, y: c.y }
+}
+
+function validateViewport(raw: unknown): FrameSize {
+  const v = asObject(raw, 'recipe.viewport')
+  if (!isNum(v.width) || !isNum(v.height)) {
+    throw new RecipeParseError('recipe.viewport: width/height 누락')
+  }
+  return { width: v.width, height: v.height }
 }
 
 function validateTrim(raw: unknown): Trim {
