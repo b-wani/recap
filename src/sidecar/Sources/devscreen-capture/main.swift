@@ -13,6 +13,11 @@ import ScreenCaptureKit
 ///
 /// 효과 로직은 여기 없다 — 원본 기록 + 이벤트 스트리밍만 (ADR 0001).
 
+/// SCShareableContent/startCapture 완료 콜백이 안 오면 이 시간 후 error를 뱉고 종료한다.
+/// 캡처 클라이언트가 동시에 여러 개 뜨면 replayd 경합으로 콜백이 영영 안 올 수 있는데,
+/// 그대로 두면 재연결을 무한 반복하며 CPU를 태우고 부모에게는 아무 신호도 안 간다.
+let watchdogSeconds: TimeInterval = 10
+
 final class Session {
     let outputURL: URL
     let targetId: String
@@ -20,6 +25,7 @@ final class Session {
     var tracker: MouseTracker?
     var keyTracker: KeyTracker?
     var eventCount = 0
+    var ready = false
     var stopping = false
 
     init(outDir: URL, targetId: String) {
@@ -38,9 +44,16 @@ final class Session {
             Emitter.error(code: code, message: message)
             exit(1)
         })
+        DispatchQueue.main.asyncAfter(deadline: .now() + watchdogSeconds) { [weak self] in
+            guard let self, !self.ready, !self.stopping else { return }
+            Emitter.error(code: "capture-failed",
+                          message: "캡처 시작이 \(Int(watchdogSeconds))초 안에 완료되지 않았습니다. 다른 화면 캡처가 진행 중일 수 있습니다 — 잠시 후 다시 시도하세요.")
+            exit(1)
+        }
     }
 
     private func onReady(_ target: ResolvedTarget) {
+        ready = true
         let startedAt = Date().timeIntervalSince1970
         let tracker = MouseTracker(startedAt: startedAt,
                                    targetOrigin: target.origin) { [weak self] kind, t, x, y, cursor in
@@ -91,18 +104,28 @@ func optionValue(_ args: [String], _ name: String) -> String? {
 
 /// 선택 가능한 캡처 대상을 열거해 targets 메시지 하나를 내보내고 종료한다.
 func runList() -> Never {
+    var completed = false
     SCShareableContent.getWithCompletionHandler { content, error in
-        if let error {
-            Emitter.error(code: "permission-denied",
-                          message: "화면 녹화 권한이 필요합니다. 시스템 설정 > 개인정보 보호 및 보안 > 화면 기록에서 허용하세요. (\(error.localizedDescription))")
-            exit(1)
+        DispatchQueue.main.async {
+            completed = true
+            if let error {
+                Emitter.error(code: "permission-denied",
+                              message: "화면 녹화 권한이 필요합니다. 시스템 설정 > 개인정보 보호 및 보안 > 화면 기록에서 허용하세요. (\(error.localizedDescription))")
+                exit(1)
+            }
+            guard let content else {
+                Emitter.error(code: "no-display", message: "캡처 대상을 조회하지 못했습니다.")
+                exit(1)
+            }
+            Emitter.targets(CaptureTargets.enumerate(content))
+            exit(0)
         }
-        guard let content else {
-            Emitter.error(code: "no-display", message: "캡처 대상을 조회하지 못했습니다.")
-            exit(1)
-        }
-        Emitter.targets(CaptureTargets.enumerate(content))
-        exit(0)
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + watchdogSeconds) {
+        guard !completed else { return }
+        Emitter.error(code: "capture-failed",
+                      message: "캡처 대상 조회가 \(Int(watchdogSeconds))초 안에 완료되지 않았습니다. 다른 화면 캡처가 진행 중일 수 있습니다 — 다시 시도하세요.")
+        exit(1)
     }
     RunLoop.main.run()
     fatalError("unreachable")
@@ -147,7 +170,10 @@ case "record":
     sigterm.resume()
 
     session.run()
-    RunLoop.main.run()
+    // 전역 마우스·키 모니터(NSEvent.addGlobalMonitorForEvents)는 AppKit 이벤트 루프가
+    // 돌아야 콜백을 받는다 — RunLoop.main.run()만으로는 이벤트가 오지 않아 이벤트 트랙이
+    // 항상 비고(커서·자동 줌·키 오버레이가 죽는다), NSApplication.run()으로 돌려야 한다.
+    NSApplication.shared.run()
 
 default:
     FileHandle.standardError.write(Data("usage:\n  devscreen-capture list\n  devscreen-capture record --out <dir> --target <id>\n".utf8))

@@ -44,15 +44,16 @@ final class ScreenRecorder: NSObject, SCStreamOutput {
             }
 
             do {
-                try self.beginCapture(target: target)
-                onReady(target)
+                try self.beginCapture(target: target, onReady: onReady, onError: onError)
             } catch {
                 onError("capture-failed", "캡처 시작 실패: \(error.localizedDescription)")
             }
         }
     }
 
-    private func beginCapture(target: ResolvedTarget) throws {
+    private func beginCapture(target: ResolvedTarget,
+                              onReady: @escaping (_ target: ResolvedTarget) -> Void,
+                              onError: @escaping (_ code: String, _ message: String) -> Void) throws {
         let filter = target.filter
 
         let config = SCStreamConfiguration()
@@ -85,14 +86,16 @@ final class ScreenRecorder: NSObject, SCStreamOutput {
         self.videoInput = input
         self.stream = stream
 
-        let sem = DispatchSemaphore(value: 0)
-        var startError: Error?
+        // 세마포어로 완료를 동기 대기하면 SCShareableContent 완료 핸들러가 도는 큐가
+        // 막혀 startCapture 완료 콜백과 데드락한다 (list는 세마포어가 없어 정상).
+        // 완료를 콜백으로 이어받아 ready/error를 알린다.
         stream.startCapture { error in
-            startError = error
-            sem.signal()
+            if let error {
+                onError("capture-failed", "캡처 시작 실패: \(error.localizedDescription)")
+                return
+            }
+            onReady(target)
         }
-        sem.wait()
-        if let startError { throw startError }
     }
 
     // MARK: SCStreamOutput
