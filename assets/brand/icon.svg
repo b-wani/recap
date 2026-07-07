@@ -11,8 +11,8 @@
   </defs>
   <rect width="1024" height="1024" rx="229" fill="url(#f-bg)"/>
   <rect x="0.5" y="0.5" width="1023" height="1023" rx="228.5" fill="none" stroke="#ffffff" stroke-opacity="0.05"/>
-  <!-- ring with gap at 12 o'clock -->
-  <path d="M419.7 258.2 A270 270 0 1 0 604.3 258.2" fill="none" stroke="#e7e8ea" stroke-width="46" stroke-linecap="round"/>
+  <!-- ring with gap at 12 o'clock — wordmark 심볼과 동일 비례 (stroke/r=19/62, dot/r=34/62, gap 반각 20°) -->
+  <path d="M425.1 273.3 A254 254 0 1 0 598.9 273.3" fill="none" stroke="#e7e8ea" stroke-width="78" stroke-linecap="round"/>
   <!-- REC dot -->
-  <circle cx="512" cy="512" r="150" fill="url(#f-dot)"/>
+  <circle cx="512" cy="512" r="139" fill="url(#f-dot)"/>
 </svg>
