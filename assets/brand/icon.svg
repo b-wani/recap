@@ -1,0 +1,18 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Recap app icon — ring and REC dot">
+  <defs>
+    <linearGradient id="f-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#18191b"/>
+      <stop offset="1" stop-color="#0a0a0b"/>
+    </linearGradient>
+    <radialGradient id="f-dot" cx="0.5" cy="0.42" r="0.65">
+      <stop offset="0" stop-color="#ff5a4f"/>
+      <stop offset="1" stop-color="#ff3b30"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="229" fill="url(#f-bg)"/>
+  <rect x="0.5" y="0.5" width="1023" height="1023" rx="228.5" fill="none" stroke="#ffffff" stroke-opacity="0.05"/>
+  <!-- closed ring -->
+  <circle cx="512" cy="512" r="270" fill="none" stroke="#e7e8ea" stroke-width="46"/>
+  <!-- REC dot -->
+  <circle cx="512" cy="512" r="150" fill="url(#f-dot)"/>
+</svg>

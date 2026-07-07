@@ -1,0 +1,15 @@
+<svg width="720" height="200" viewBox="0 0 720 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Recap wordmark — ring and REC dot">
+  <defs>
+    <radialGradient id="wf-dot" cx="0.5" cy="0.42" r="0.65">
+      <stop offset="0" stop-color="#ff5a4f"/>
+      <stop offset="1" stop-color="#ff3b30"/>
+    </radialGradient>
+  </defs>
+  <!-- symbol: closed ring + REC dot -->
+  <g>
+    <circle cx="100" cy="100" r="62" fill="none" stroke="#e7e8ea" stroke-width="19"/>
+    <circle cx="100" cy="100" r="34" fill="url(#wf-dot)"/>
+  </g>
+  <!-- wordmark -->
+  <text x="206" y="144" font-family="-apple-system, 'Helvetica Neue', 'Segoe UI', sans-serif" font-size="132" font-weight="700" letter-spacing="-4" fill="#f5f5f7">Recap</text>
+</svg>

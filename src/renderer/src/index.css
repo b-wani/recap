@@ -1,6 +1,51 @@
 :root {
   color-scheme: dark;
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+
+  /* Color — 깊은 모노크롬 뉴트럴 */
+  --bg: #0a0a0b;
+  --surface: #141415;
+  --surface-2: #1a1a1c;
+  --surface-3: #232326;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text-1: #f5f5f7;
+  --text-2: #a1a1a6;
+  --text-3: #6e6e73;
+
+  /* REC 레드 — 성역(녹화·삭제 전용) */
+  --rec: #ff453a;
+  --rec-hover: #ff5a4f;
+
+  /* Primary(화이트) — 주요 액션·활성 선택 */
+  --primary: #f5f5f7;
+  --primary-ink: #0a0a0b;
+  --primary-hover: #e4e4e7;
+
+  /* 타임라인 줌 구간 — 뉴트럴(파랑 폐지) */
+  --zoom: #55555a;
+  --zoom-hover: #6a6a70;
+
+  /* 경고·트림 핸들 — 앰버(레드 아님) */
+  --warn: #ff9f0a;
+
+  /* Typography */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --font-mono: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Radius */
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 12px;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  font-family: var(--font-ui);
 }
 
 * {
@@ -9,8 +54,8 @@
 
 body {
   margin: 0;
-  background: #1c1c1e;
-  color: #f2f2f7;
+  background: var(--bg);
+  color: var(--text-1);
 }
 
 .app {
@@ -18,15 +63,15 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 32px 24px;
+  padding: var(--space-6) var(--space-5);
 }
 
 .title {
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: #8e8e93;
-  margin: 0 0 24px;
+  color: var(--text-3);
+  margin: 0 0 var(--space-5);
 }
 
 .panel {
@@ -35,11 +80,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .hint {
-  color: #aeaeb2;
+  color: var(--text-2);
   margin: 0;
 }
 
@@ -47,22 +92,22 @@ body {
   width: 100%;
   max-width: 460px;
   font-size: 14px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid #3a3a3c;
-  background: #2c2c2e;
-  color: #f2f2f7;
+  padding: 10px var(--space-3);
+  border-radius: var(--radius-m);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-1);
   cursor: pointer;
 }
 
 .btn {
   font-size: 15px;
   font-weight: 600;
-  padding: 12px 28px;
-  border: none;
-  border-radius: 10px;
-  background: #3a3a3c;
-  color: #f2f2f7;
+  padding: var(--space-3) 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-3);
+  color: var(--text-1);
   cursor: pointer;
 }
 
@@ -70,14 +115,18 @@ body {
   filter: brightness(1.15);
 }
 
-.btn-record {
-  background: #ff453a;
-  color: white;
+/* 녹화 전용 레드 */
+.btn-record,
+.btn-stop {
+  background: var(--rec);
+  border-color: transparent;
+  color: #fff;
 }
 
-.btn-stop {
-  background: #ff453a;
-  color: white;
+.btn-record:hover,
+.btn-stop:hover {
+  background: var(--rec-hover);
+  filter: none;
 }
 
 .rec-indicator {
@@ -92,7 +141,7 @@ body {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #ff453a;
+  background: var(--rec);
   animation: pulse 1.2s ease-in-out infinite;
 }
 
@@ -107,19 +156,20 @@ body {
 }
 
 .rec-time {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  color: #ff453a;
+  color: var(--rec);
 }
 
 .recent {
   width: 100%;
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
 
 .recent-title {
   font-size: 12px;
   font-weight: 600;
-  color: #8e8e93;
+  color: var(--text-3);
   margin: 0 0 10px;
 }
 
@@ -129,7 +179,7 @@ body {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .recent-item {
@@ -137,18 +187,18 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border: none;
-  border-radius: 10px;
-  background: #2c2c2e;
-  color: #f2f2f7;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--text-1);
   cursor: pointer;
   text-align: left;
 }
 
 .recent-item:hover {
-  background: #3a3a3c;
+  background: var(--surface-3);
 }
 
 .recent-name {
@@ -158,13 +208,14 @@ body {
 
 .recent-meta {
   font-size: 12px;
-  color: #8e8e93;
+  color: var(--text-3);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 .preview-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   justify-content: center;
 }
 
@@ -176,24 +227,24 @@ body {
   width: 100%;
   height: auto;
   display: block;
-  border-radius: 12px;
-  background: black;
+  border-radius: var(--radius-l);
+  background: #000;
 }
 
 .controls {
-  border: 1px solid #3a3a3c;
-  border-radius: 10px;
-  padding: 12px 16px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: var(--space-3) var(--space-4) 14px;
   margin: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 20px;
+  gap: var(--space-5);
 }
 
 .controls legend {
   font-size: 12px;
-  color: #8e8e93;
+  color: var(--text-3);
   padding: 0 6px;
 }
 
@@ -202,13 +253,13 @@ body {
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
-  color: #aeaeb2;
+  color: var(--text-2);
 }
 
 .control-check {
   flex-direction: row;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .control input[type='color'] {
@@ -216,7 +267,7 @@ body {
   height: 28px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-s);
   background: none;
   cursor: pointer;
 }
@@ -228,27 +279,36 @@ body {
 .control-text {
   width: 220px;
   padding: 6px 10px;
-  border: 1px solid #3a3a3c;
-  border-radius: 6px;
-  background: #1c1c1e;
-  color: #f2f2f7;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--text-1);
   font-size: 13px;
 }
 
 .scale-buttons {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .btn-scale {
-  padding: 8px 16px;
+  padding: var(--space-2) var(--space-4);
   font-size: 14px;
-  background: #3a3a3c;
+  background: var(--surface-3);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
+/* 활성 선택 — 화이트 primary */
 .btn-scale.is-active {
-  background: #0a84ff;
-  color: white;
+  background: var(--primary);
+  border-color: transparent;
+  color: var(--primary-ink);
+}
+
+.btn-scale.is-active:hover {
+  background: var(--primary-hover);
+  filter: none;
 }
 
 .timeline {
@@ -259,8 +319,8 @@ body {
 .tl-track {
   position: relative;
   height: 56px;
-  border-radius: 8px;
-  background: #2c2c2e;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
   overflow: hidden;
   touch-action: none;
 }
@@ -274,25 +334,29 @@ body {
   pointer-events: none;
 }
 
-/* 줌 구간 블록. */
+/* 줌 구간 블록 — 뉴트럴(파랑 폐지). */
 .tl-seg {
   position: absolute;
-  top: 8px;
-  bottom: 8px;
-  min-width: 8px;
+  top: var(--space-2);
+  bottom: var(--space-2);
+  min-width: var(--space-2);
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  background: #0a84ff;
-  color: white;
+  border-radius: var(--radius-s);
+  background: var(--zoom);
+  color: var(--text-1);
   font-size: 12px;
   cursor: grab;
   touch-action: none;
 }
 
+.tl-seg:hover {
+  background: var(--zoom-hover);
+}
+
 .tl-seg.is-selected {
-  outline: 2px solid #f2f2f7;
+  outline: 2px solid var(--text-1);
 }
 
 .tl-seg-label {
@@ -300,30 +364,33 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 0 4px;
+  padding: 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .tl-seg-edge {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: var(--space-2);
   cursor: ew-resize;
   touch-action: none;
 }
 
 .tl-seg-edge-start {
   left: 0;
-  border-radius: 6px 0 0 6px;
+  border-radius: var(--radius-s) 0 0 var(--radius-s);
   background: rgba(255, 255, 255, 0.35);
 }
 
 .tl-seg-edge-end {
   right: 0;
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 var(--radius-s) var(--radius-s) 0;
   background: rgba(255, 255, 255, 0.35);
 }
 
+/* 삭제 — 파괴적 액션(레드 허용). */
 .tl-seg-del {
   position: absolute;
   top: -8px;
@@ -333,80 +400,88 @@ body {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: #ff453a;
-  color: white;
+  background: var(--rec);
+  color: #fff;
   font-size: 14px;
   line-height: 1;
   cursor: pointer;
 }
 
-/* 트림 핸들. */
+/* 트림 핸들 — 앰버. */
 .tl-trim-handle {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 6px;
   margin-left: -3px;
-  background: #ff9f0a;
+  background: var(--warn);
   cursor: ew-resize;
   touch-action: none;
 }
 
 .tl-help {
-  margin: 8px 0 0;
+  margin: var(--space-2) 0 0;
   font-size: 12px;
-  color: #8e8e93;
+  color: var(--text-3);
 }
 
 .meta-sub {
-  color: #8e8e93;
+  color: var(--text-3);
   font-size: 12px;
 }
 
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 20px;
+  gap: var(--space-5);
   margin: 0;
 }
 
 .meta dt {
   font-size: 12px;
-  color: #8e8e93;
+  color: var(--text-3);
   margin-bottom: 2px;
 }
 
 .meta dd {
   margin: 0;
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
 }
 
 .meta .path {
-  font-family: 'SF Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: #aeaeb2;
+  color: var(--text-2);
   word-break: break-all;
 }
 
+/* 익스포트 — 주요 액션(화이트 primary). */
 .btn-export {
-  background: #0a84ff;
-  color: white;
+  background: var(--primary);
+  border-color: transparent;
+  color: var(--primary-ink);
+}
+
+.btn-export:hover {
+  background: var(--primary-hover);
+  filter: none;
 }
 
 .export-done {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .export-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .export-warn {
-  color: #ff9f0a;
+  color: var(--warn);
 }
 
 .error {
@@ -414,17 +489,17 @@ body {
 }
 
 .error h2 {
-  color: #ff9f0a;
+  color: var(--warn);
 }
 
 .err-message {
-  color: #aeaeb2;
+  color: var(--text-2);
   line-height: 1.5;
 }
 
 .steps {
   text-align: left;
-  color: #d1d1d6;
+  color: var(--text-1);
   line-height: 1.7;
   max-width: 460px;
 }
