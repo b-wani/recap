@@ -6,13 +6,15 @@ import {
   canGoBack,
   isLastStep
 } from '../../../shared/onboarding'
+import { OnboardingStepBody } from './OnboardingStepBody'
 
 /**
  * 최초 실행 온보딩 — 중앙 카드로 7단계를 오간다. Next/Back·단계 인디케이터·키보드
  * 좌우 이동을 제공하고, 마지막 단계 완료 시 플래그를 저장한 뒤 onComplete로 기존
  * 화면에 자리를 넘긴다. 단계 전이 판정은 shared/onboarding 순수 모듈이 맡는다.
  *
- * 이 슬라이스에서 각 단계 콘텐츠는 제목 스텁이다(실제 콘텐츠·권한 로직은 후속 슬라이스).
+ * 단계 본문은 렌더러에 하드코딩한다(OnboardingStepBody). 권한 단계(permissions)는
+ * 본문 없이 제목만 두어 후속 슬라이스(#47)의 실제 권한 UI에 자리를 남긴다.
  */
 export function OnboardingView({ onComplete }: { onComplete: () => void }): JSX.Element {
   const [index, setIndex] = useState(0)
@@ -48,6 +50,8 @@ export function OnboardingView({ onComplete }: { onComplete: () => void }): JSX.
           {index + 1} / {ONBOARDING_STEPS.length}
         </p>
         <h2 className="onboarding-step-title">{step.title}</h2>
+
+        <OnboardingStepBody id={step.id} />
 
         <div className="onboarding-dots" role="tablist" aria-label="온보딩 단계">
           {ONBOARDING_STEPS.map((s, i) => (
