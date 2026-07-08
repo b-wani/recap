@@ -91,4 +91,17 @@ echo "[3/3] converting to icns" >&2
 iconutil -c icns "$ICONSET" -o "$ICNS"
 echo "  wrote $ICNS" >&2
 
+# --- 4. 메뉴바(Tray) 아이콘 -------------------------------------------------
+# 18px(@1x) + 36px(@2x) PNG. idle 은 검정 단색 템플릿(다크/라이트 자동 대응),
+# recording 은 빨간 점(템플릿 아님 — 색 유지). Electron 이 @2x 를 자동으로 집는다.
+echo "[4/4] building tray icons" >&2
+for tray in tray-idle tray-recording; do
+  tsvg="$BRAND_DIR/$tray.svg"
+  [[ -f "$tsvg" ]] || continue
+  qlmanage -t -s 72 -o "$WORK" "$tsvg" >/dev/null 2>&1
+  sips -z 36 36 "$WORK/$tray.svg.png" --out "$BRAND_DIR/$tray@2x.png" >/dev/null
+  sips -z 18 18 "$WORK/$tray.svg.png" --out "$BRAND_DIR/$tray.png" >/dev/null
+  echo "  wrote $BRAND_DIR/$tray.png (+@2x)" >&2
+done
+
 echo "done." >&2
