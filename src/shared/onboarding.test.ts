@@ -5,7 +5,9 @@ import {
   isLastStep,
   canGoBack,
   advance,
-  goBack
+  goBack,
+  arePermissionsSatisfied,
+  canAdvance
 } from './onboarding'
 
 const LAST = ONBOARDING_STEPS.length - 1
@@ -60,5 +62,36 @@ describe('전진·완료 규칙: 마지막 단계의 다음은 완료', () => {
 
   it('권한 단계(첫 단계)도 이 슬라이스에서는 항상 전진 가능하다 (#47에서 게이팅)', () => {
     expect(advance(0)).toEqual({ kind: 'step', index: 1 })
+  })
+})
+
+describe('권한 충족 판정: 둘 다 granted여야 core 충족 (#47)', () => {
+  it('둘 다 granted면 충족이다', () => {
+    expect(arePermissionsSatisfied({ screen: true, accessibility: true })).toBe(true)
+  })
+
+  it('하나라도 미충족이면 충족이 아니다', () => {
+    expect(arePermissionsSatisfied({ screen: true, accessibility: false })).toBe(false)
+    expect(arePermissionsSatisfied({ screen: false, accessibility: true })).toBe(false)
+    expect(arePermissionsSatisfied({ screen: false, accessibility: false })).toBe(false)
+  })
+})
+
+describe('전진 게이트: 권한 단계는 두 권한이 모두 granted여야 전진 가능 (#47)', () => {
+  const PERMISSIONS_INDEX = ONBOARDING_STEPS.findIndex((s) => s.id === 'permissions')
+
+  it('권한 단계에서 권한 미충족이면 전진 불가다', () => {
+    expect(canAdvance(PERMISSIONS_INDEX, { screen: false, accessibility: false })).toBe(false)
+    expect(canAdvance(PERMISSIONS_INDEX, { screen: true, accessibility: false })).toBe(false)
+    expect(canAdvance(PERMISSIONS_INDEX, { screen: false, accessibility: true })).toBe(false)
+  })
+
+  it('권한 단계에서 둘 다 granted면 전진 가능하다', () => {
+    expect(canAdvance(PERMISSIONS_INDEX, { screen: true, accessibility: true })).toBe(true)
+  })
+
+  it('권한 단계가 아니면 권한과 무관하게 전진 가능하다', () => {
+    expect(canAdvance(1, { screen: false, accessibility: false })).toBe(true)
+    expect(canAdvance(LAST, { screen: false, accessibility: false })).toBe(true)
   })
 })

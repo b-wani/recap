@@ -30,7 +30,13 @@ export const IpcChannel = {
   /** 온보딩 완료 여부를 조회한다(앱 시작 시 렌더러가 온보딩/기존 화면을 분기). */
   OnboardingStatus: 'onboarding:status',
   /** 온보딩 완료를 로컬(userData)에 저장한다(마지막 단계 완료 액션). */
-  OnboardingComplete: 'onboarding:complete'
+  OnboardingComplete: 'onboarding:complete',
+  /** 화면 녹화·손쉬운 사용 권한의 granted 여부를 조회한다(온보딩 권한 단계 폴링). */
+  PermissionStatus: 'permissions:status',
+  /** 지정한 권한 종류의 시스템 설정 패널을 연다(화면 녹화는 열기 전 TCC 목록 등록). */
+  OpenPermissionSettings: 'permissions:open-settings',
+  /** 권한 적용을 위한 재시작 확인 다이얼로그를 띄우고, 수락 시 앱을 재시작한다. */
+  ConfirmRestart: 'app:confirm-restart'
 } as const
 
 /** 최근 녹화 목록의 한 항목 — 다시 열기 UI가 그린다. */

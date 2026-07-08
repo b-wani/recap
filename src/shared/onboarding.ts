@@ -39,6 +39,32 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
   { id: 'faq', title: '자주 묻는 질문' }
 ]
 
+/** 온보딩이 요구하는 권한 종류 — 화면 녹화·손쉬운 사용 둘 다 필수(마이크·카메라 없음). */
+export type PermissionKind = 'screen' | 'accessibility'
+
+/** 두 권한의 granted 여부. 렌더러 폴링이 IPC로 받아 판정에 넘긴다. */
+export interface PermissionStatus {
+  screen: boolean
+  accessibility: boolean
+}
+
+/** core 권한 충족 — 화면 녹화·손쉬운 사용이 모두 granted여야 참. */
+export function arePermissionsSatisfied(status: PermissionStatus): boolean {
+  return status.screen && status.accessibility
+}
+
+/**
+ * 현재 단계에서 '다음'으로 전진할 수 있는지의 게이트. 권한 단계에서는 두 권한이
+ * 모두 granted여야 하고, 그 외 단계는 언제나 전진 가능하다. (전이 계산은 advance,
+ * 전진 허용 여부는 여기서 판정한다.)
+ */
+export function canAdvance(index: number, permissions: PermissionStatus): boolean {
+  if (ONBOARDING_STEPS[index]?.id === 'permissions') {
+    return arePermissionsSatisfied(permissions)
+  }
+  return true
+}
+
 /** 첫 단계인지 — 첫 단계에서는 후퇴할 수 없다. */
 export function isFirstStep(index: number): boolean {
   return index <= 0
