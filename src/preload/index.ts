@@ -27,6 +27,9 @@ const api = {
     ipcRenderer.invoke(IpcChannel.SaveRecipe, folder, recipe),
   /** 로컬에 저장된 최근 녹화 목록을 최신순으로 가져온다. */
   listRecordings: (): Promise<RecordingSummary[]> => ipcRenderer.invoke(IpcChannel.ListRecordings),
+  /** 미리보기 첫 프레임 썸네일(JPEG 바이트)을 녹화 폴더에 캐시로 저장한다. */
+  saveThumbnail: (folder: string, bytes: ArrayBuffer): Promise<void> =>
+    ipcRenderer.invoke(IpcChannel.SaveThumbnail, folder, bytes),
   /** 저장된 녹화를 다시 연다. 결과는 onStateChange로 미리보기 상태가 온다. */
   openRecording: (folder: string): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.OpenRecording, folder),

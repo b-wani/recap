@@ -15,6 +15,8 @@ export const IpcChannel = {
   SaveRecipe: 'recipe:save',
   /** 로컬에 저장된 최근 녹화 목록을 가져온다. */
   ListRecordings: 'recordings:list',
+  /** 미리보기 첫 프레임 썸네일(JPEG)을 녹화 폴더에 캐시로 저장한다. */
+  SaveThumbnail: 'thumbnail:save',
   /** 저장된 녹화 하나를 다시 열어 미리보기 상태로 복원한다. */
   OpenRecording: 'recording:open',
   /** 익스포트 바이트를 녹화 폴더에 저장한다(포맷에 따라 export.mp4 / export.gif). */
@@ -37,6 +39,8 @@ export interface RecordingSummary {
   startedAt: number
   durationMs: number
   eventCount: number
+  /** 첫 프레임 썸네일 캐시의 미리보기 URL. 캐시가 없는 구버전 녹화면 없음. */
+  thumbnailUrl?: string
 }
 
 /** 익스포트 저장 결과 — 렌더러가 완료 UI(경로·용량·경고)를 그리는 데 쓴다. */

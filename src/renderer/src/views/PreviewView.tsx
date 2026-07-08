@@ -15,6 +15,28 @@ import { Timeline } from '../components/Timeline'
 import { Sidebar } from '../components/Sidebar'
 import { type ExportStatus } from '../components/ExportPanel'
 
+/**
+ * 합성된 캔버스의 현재 프레임을 작은 JPEG로 줄여 녹화 폴더에 썸네일 캐시로 저장한다.
+ * idle 런처의 최근 녹화 목록이 이 캐시를 읽어 첫 프레임 미리보기를 그린다.
+ */
+async function saveThumbnailFromCanvas(canvas: HTMLCanvasElement, folder: string): Promise<void> {
+  const maxWidth = 320
+  const scale = Math.min(1, maxWidth / canvas.width)
+  const w = Math.max(1, Math.round(canvas.width * scale))
+  const h = Math.max(1, Math.round(canvas.height * scale))
+  const off = document.createElement('canvas')
+  off.width = w
+  off.height = h
+  const ctx = off.getContext('2d')
+  if (!ctx) return
+  ctx.drawImage(canvas, 0, 0, w, h)
+  const blob = await new Promise<Blob | null>((resolve) =>
+    off.toBlob(resolve, 'image/jpeg', 0.7)
+  )
+  if (!blob) return
+  await window.recap.saveThumbnail(folder, await blob.arrayBuffer())
+}
+
 export function PreviewView({
   state,
   onExit
@@ -42,6 +64,44 @@ export function PreviewView({
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') setSelectedId(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // 재생 단축키(편집기 마운트 동안만): Space 재생/정지, ←/→ 프레임(1/60s) 이동.
+  // 입력 필드·색상 피커 포커스 중에는 타이핑/조작과 충돌하지 않도록 무시한다.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      const el = document.activeElement
+      if (
+        el instanceof HTMLElement &&
+        (el.tagName === 'INPUT' ||
+          el.tagName === 'SELECT' ||
+          el.tagName === 'TEXTAREA' ||
+          el.isContentEditable)
+      ) {
+        return
+      }
+      const video = videoRef.current
+      const recipe = recipeRef.current
+      if (!video || !recipe) return
+      if (e.key === ' ') {
+        e.preventDefault()
+        if (video.paused) void video.play()
+        else video.pause()
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        const frameMs = 1000 / 60
+        const dir = e.key === 'ArrowRight' ? 1 : -1
+        const nextMs = Math.min(
+          recipe.trim.endMs,
+          Math.max(recipe.trim.startMs, video.currentTime * 1000 + dir * frameMs)
+        )
+        video.pause()
+        video.currentTime = nextMs / 1000
+        setCurrentMs(nextMs)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -77,6 +137,8 @@ export function PreviewView({
 
   // 재생 루프: 트림 창 안에서만 반복 재생하고, 매 프레임 합성 파라미터를 샘플링해 그대로 그린다.
   const lastTickRef = useRef(0)
+  // 썸네일은 미리보기 진입 후 첫 유효 프레임에서 한 번만 캡처한다.
+  const thumbSavedRef = useRef(false)
   useEffect(() => {
     let raf = 0
     const tick = (): void => {
@@ -95,6 +157,11 @@ export function PreviewView({
       // 카메라·커서·클릭·배경/패딩·배지를 한 번에 샘플링해 공용 그리기 함수로 그린다.
       const comp = sampleComposition(recipe, video.currentTime * 1000)
       drawComposition(ctx, video, comp, recipe.source)
+      // 첫 유효 프레임이 그려지면 썸네일을 한 번 캡처해 폴더에 캐시한다(최근 목록용).
+      if (!thumbSavedRef.current && video.readyState >= 2 && video.videoWidth > 0) {
+        thumbSavedRef.current = true
+        void saveThumbnailFromCanvas(canvas, state.folder)
+      }
       // 재생 헤드 표시는 ~12fps로만 갱신해 리렌더를 억제한다.
       const now = performance.now()
       if (now - lastTickRef.current > 80) {
@@ -104,7 +171,7 @@ export function PreviewView({
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [state.folder])
 
   // 익스포트: 미리보기와 동일한 레시피로 원본을 인코딩해 폴더에 저장한다(MP4/GIF 선택).
   const handleExport = async (format: ExportFormat): Promise<void> => {

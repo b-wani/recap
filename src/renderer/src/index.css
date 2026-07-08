@@ -249,10 +249,9 @@ body {
 .recent-item {
   width: 100%;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-m);
   background: var(--surface);
@@ -265,6 +264,37 @@ body {
   background: var(--surface-3);
 }
 
+/* 첫 프레임 썸네일 캐시 — 없으면 플레이스홀더로 안전하게 대체. */
+.recent-thumb {
+  flex: none;
+  width: 72px;
+  height: 45px;
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recent-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.recent-thumb-fallback {
+  font-size: var(--text-md);
+  opacity: 0.5;
+}
+
+.recent-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .recent-name {
   font-size: var(--text-base);
   font-weight: 600;
@@ -275,6 +305,24 @@ body {
   color: var(--text-3);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+}
+
+/* 녹화 0개일 때 안내 — 담백하게, 전역 단축키까지. */
+.empty-hint {
+  color: var(--text-2);
+  text-align: center;
+  line-height: 1.6;
+  margin: var(--space-2) 0 0;
+}
+
+.empty-hint kbd {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--text-1);
 }
 
 /* ── Idle 대상 피커 ───────────────────────────────── */
