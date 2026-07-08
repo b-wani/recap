@@ -41,7 +41,10 @@ const api = {
     ipcRenderer.invoke(IpcChannel.ExportReveal, path),
   /** 저장된 파일 경로를 클립보드에 복사한다. */
   copyExportPath: (path: string): Promise<void> =>
-    ipcRenderer.invoke(IpcChannel.ExportCopyPath, path)
+    ipcRenderer.invoke(IpcChannel.ExportCopyPath, path),
+  /** 편집기 진입(on=true) 시 창을 넓히고, 이탈(on=false) 시 원래 크기로 되돌린다. */
+  setEditorMode: (on: boolean): Promise<void> =>
+    ipcRenderer.invoke(IpcChannel.SetEditorMode, on)
 }
 
 contextBridge.exposeInMainWorld('recap', api)

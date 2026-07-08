@@ -3,17 +3,17 @@ import type { RecordingState } from '../../../shared/ipc'
 import {
   deriveRecipe,
   sampleComposition,
-  ZOOM_DEFAULTS,
   type FrameSize,
   type RenderRecipe
 } from '../../../shared/recipe'
-import { setZoomSegmentScale, trimmedDurationMs } from '../../../shared/recipe.edit'
+import { deleteZoomSegment, trimmedDurationMs } from '../../../shared/recipe.edit'
 import { drawComposition } from '../compose'
 import { GITHUB_PRESET, exceedsSizeLimit, type ExportFormat } from '../../../shared/export-preset'
 import { renderRecipeToMp4, renderRecipeToGif } from '../export'
 import { formatElapsed } from '../format'
 import { Timeline } from '../components/Timeline'
-import { ExportPanel, type ExportStatus } from '../components/ExportPanel'
+import { Sidebar } from '../components/Sidebar'
+import { type ExportStatus } from '../components/ExportPanel'
 
 export function PreviewView({
   state,
@@ -26,11 +26,28 @@ export function PreviewView({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const recipeRef = useRef<RenderRecipe | null>(null)
   const [recipe, setRecipe] = useState<RenderRecipe | null>(null)
-  const [selected, setSelected] = useState<number | null>(null)
+  // 선택 상태는 이 하나로 소유한다(줌 구간 인덱스 문자열, 없으면 null). 빈 곳 클릭·Esc로 해제.
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [exportStatus, setExportStatus] = useState<ExportStatus>({ phase: 'idle' })
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [playing, setPlaying] = useState(true)
+  const [currentMs, setCurrentMs] = useState(0)
 
-  // RAF 루프·익스포트는 최신 레시피를 ref로 읽는다 — 편집(타임라인·배경/배지)이 다음 프레임에 즉시 반영된다.
+  // 편집기 진입 동안 창을 넓히고(#35), 목록·재녹화 등으로 벗어나면 원래 크기로 되돌린다.
+  useEffect(() => {
+    void window.recap.setEditorMode(true)
+    return () => void window.recap.setEditorMode(false)
+  }, [])
+
+  // Esc로 선택을 해제해 사이드바를 기본 패널로 되돌린다.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setSelectedId(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // RAF 루프·익스포트는 최신 레시피를 ref로 읽는다 — 편집(타임라인·배경/배지·커서)이 다음 프레임에 즉시 반영된다.
   // 편집 상태는 그대로 녹화 폴더에 저장해 다시 열었을 때 복원되게 한다(이슈 #9 영속화).
   useEffect(() => {
     recipeRef.current = recipe
@@ -59,6 +76,7 @@ export function PreviewView({
   }
 
   // 재생 루프: 트림 창 안에서만 반복 재생하고, 매 프레임 합성 파라미터를 샘플링해 그대로 그린다.
+  const lastTickRef = useRef(0)
   useEffect(() => {
     let raf = 0
     const tick = (): void => {
@@ -77,6 +95,12 @@ export function PreviewView({
       // 카메라·커서·클릭·배경/패딩·배지를 한 번에 샘플링해 공용 그리기 함수로 그린다.
       const comp = sampleComposition(recipe, video.currentTime * 1000)
       drawComposition(ctx, video, comp, recipe.source)
+      // 재생 헤드 표시는 ~12fps로만 갱신해 리렌더를 억제한다.
+      const now = performance.now()
+      if (now - lastTickRef.current > 80) {
+        lastTickRef.current = now
+        setCurrentMs(video.currentTime * 1000)
+      }
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
@@ -106,7 +130,22 @@ export function PreviewView({
     }
   }
 
-  // 트림 반영 길이 (메타 바·사이드바에서 공유).
+  const togglePlay = (): void => {
+    const video = videoRef.current
+    if (!video) return
+    if (video.paused) void video.play()
+    else video.pause()
+  }
+
+  const selected = selectedId === null ? null : Number(selectedId)
+  const update = (fn: (r: RenderRecipe) => RenderRecipe): void =>
+    setRecipe((r) => (r ? fn(r) : r))
+  const onDeleteSegment = (index: number): void => {
+    update((r) => deleteZoomSegment(r, index))
+    setSelectedId(null)
+  }
+
+  // 트림 반영 길이 (메타 바·재생 컨트롤에서 공유).
   const lengthMs = recipe ? trimmedDurationMs(recipe) : state.durationMs
 
   return (
@@ -115,6 +154,8 @@ export function PreviewView({
         ref={videoRef}
         src={state.videoUrl}
         onLoadedMetadata={handleMetadata}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
         crossOrigin="anonymous"
         autoPlay
         muted
@@ -145,161 +186,48 @@ export function PreviewView({
         </button>
       </header>
 
+      {/* 3영역: 좌상단 캔버스 · 우측 사이드바 · 하단 전폭 타임라인 */}
       <div className="editor-body">
-        <div className="editor-main">
-          <div className="canvas-wrap">
-            <canvas ref={canvasRef} className="preview-canvas" />
-          </div>
-          {recipe && (
+        <div className="canvas-wrap">
+          <canvas ref={canvasRef} className="preview-canvas" />
+        </div>
+
+        {recipe && (
+          <Sidebar
+            recipe={recipe}
+            update={update}
+            selected={selected}
+            onDeleteSegment={onDeleteSegment}
+            exportStatus={exportStatus}
+            onExport={handleExport}
+            eventCount={state.eventCount}
+            folder={state.folder}
+          />
+        )}
+
+        {recipe && (
+          <div className="editor-timeline">
+            <div className="playback">
+              <button
+                className="btn btn-sm playback-toggle"
+                onClick={togglePlay}
+                aria-label={playing ? '일시정지' : '재생'}
+              >
+                {playing ? '⏸' : '▶'}
+              </button>
+              <span className="playback-time">
+                {formatElapsed(Math.max(0, currentMs - recipe.trim.startMs))} / {formatElapsed(lengthMs)}
+              </span>
+            </div>
             <Timeline
               recipe={recipe}
               selected={selected}
-              onSelect={setSelected}
+              currentMs={currentMs}
+              onSelect={(i) => setSelectedId(i === null ? null : String(i))}
               onChange={setRecipe}
             />
-          )}
-        </div>
-
-        {sidebarOpen && recipe && (
-          <aside className="editor-sidebar">
-            {/* ① 줌 구간 — 선택된 구간이 있을 때만 배율 버튼 */}
-            <fieldset className="side-section">
-              <legend className="side-section-title">줌 구간</legend>
-              {selected !== null && recipe.zoomSegments[selected] ? (
-                <>
-                  <p className="side-hint">구간 #{selected + 1} 배율</p>
-                  <div className="scale-buttons">
-                    {ZOOM_DEFAULTS.scales.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        className={`btn btn-scale${recipe.zoomSegments[selected].scale === s ? ' is-active' : ''}`}
-                        onClick={() => setRecipe((r) => (r ? setZoomSegmentScale(r, selected, s) : r))}
-                      >
-                        {s.toFixed(1)}x
-                      </button>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <p className="side-hint">타임라인에서 줌 구간을 선택하면 배율을 조절할 수 있습니다.</p>
-              )}
-            </fieldset>
-
-            {/* ② 배경 / 패딩 */}
-            <fieldset className="side-section">
-              <legend className="side-section-title">배경 / 패딩</legend>
-              <label className="control control-row">
-                <span>배경색</span>
-                <input
-                  type="color"
-                  value={recipe.background.color}
-                  onChange={(e) =>
-                    setRecipe((r) =>
-                      r ? { ...r, background: { ...r.background, color: e.target.value } } : r
-                    )
-                  }
-                />
-              </label>
-              <label className="control">
-                <span className="control-row">
-                  <span>패딩</span>
-                  <span className="control-value">{Math.round(recipe.background.padding * 100)}%</span>
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={0.4}
-                  step={0.01}
-                  value={recipe.background.padding}
-                  onChange={(e) =>
-                    setRecipe((r) =>
-                      r
-                        ? { ...r, background: { ...r.background, padding: Number(e.target.value) } }
-                        : r
-                    )
-                  }
-                />
-              </label>
-            </fieldset>
-
-            {/* ③ 배지 · 키 입력 오버레이 */}
-            <fieldset className="side-section">
-              <legend className="side-section-title">배지 · 키 입력</legend>
-              <label className="control control-check">
-                <input
-                  type="checkbox"
-                  checked={recipe.badge.visible}
-                  onChange={(e) =>
-                    setRecipe((r) =>
-                      r ? { ...r, badge: { ...r.badge, visible: e.target.checked } } : r
-                    )
-                  }
-                />
-                <span>뷰포트 크기 배지</span>
-              </label>
-              <label className="control">
-                <span>맥락 (브랜치/커밋)</span>
-                <input
-                  type="text"
-                  className="control-text"
-                  placeholder="예: feat/v2-overlay @ 61e6fd6"
-                  value={recipe.badge.contextLabel}
-                  onChange={(e) =>
-                    setRecipe((r) =>
-                      r ? { ...r, badge: { ...r.badge, contextLabel: e.target.value } } : r
-                    )
-                  }
-                />
-              </label>
-              <label className="control control-check">
-                <input
-                  type="checkbox"
-                  checked={recipe.keystrokes.overlayVisible}
-                  onChange={(e) =>
-                    setRecipe((r) =>
-                      r
-                        ? { ...r, keystrokes: { ...r.keystrokes, overlayVisible: e.target.checked } }
-                        : r
-                    )
-                  }
-                />
-                <span>키 입력 오버레이</span>
-              </label>
-            </fieldset>
-
-            {/* ④ 익스포트 */}
-            <fieldset className="side-section">
-              <legend className="side-section-title">익스포트</legend>
-              <ExportPanel status={exportStatus} onExport={handleExport} />
-            </fieldset>
-
-            {/* 메타 정보 (사이드바 하단) */}
-            <dl className="meta">
-              <div>
-                <dt>자동 줌</dt>
-                <dd>{recipe.zoomSegments.length}개 구간 (클릭에서 자동 생성)</dd>
-              </div>
-              <div>
-                <dt>이벤트 트랙</dt>
-                <dd>{state.eventCount}개 이벤트 (events.json 분리 저장)</dd>
-              </div>
-              <div>
-                <dt>폴더</dt>
-                <dd className="path">{state.folder}</dd>
-              </div>
-            </dl>
-          </aside>
+          </div>
         )}
-
-        <button
-          className="sidebar-toggle"
-          onClick={() => setSidebarOpen((v) => !v)}
-          title={sidebarOpen ? '사이드바 접기' : '사이드바 펼치기'}
-          aria-label={sidebarOpen ? '사이드바 접기' : '사이드바 펼치기'}
-        >
-          {sidebarOpen ? '›' : '‹'}
-        </button>
       </div>
     </section>
   )

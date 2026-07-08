@@ -76,6 +76,13 @@ export interface CursorTrack {
   keyframes: CursorKeyframe[]
   /** 시간순 클릭 지점. */
   clicks: ClickMark[]
+  /** 커서 그리기 크기 배율 (1 = 기본). 사이드바에서 1x/1.5x/2x로 조절한다. */
+  size: number
+  /**
+   * 스무딩 커널의 표준편차(ms). 사이드바에서 끔/약/강으로 조절한다. 0이면 스무딩하지
+   * 않고 가장 가까운 원본 이벤트 위치를 그대로 쓴다. 클수록 흔들림이 더 감쇠된다.
+   */
+  smoothingMs: number
 }
 
 /**
@@ -165,6 +172,8 @@ export interface CursorSample {
   y: number
   /** 시각 t의 커서 모양(스무딩 대상 아님 — 가장 최근 이벤트의 모양). */
   cursor: CursorKind
+  /** 커서 그리기 크기 배율 (레시피의 cursor.size를 그대로 옮긴다). */
+  size: number
 }
 
 /** 시각 t의 활성 클릭 하이라이트 — 미리보기 층이 리플/눌림으로 그린다. */
@@ -250,11 +259,22 @@ export const ZOOM_DEFAULTS = {
  * 커서 튜닝 수치 (SPEC "커서 렌더링"). 규칙만 테스트로 고정하고 값은 실험으로 정한다.
  */
 export const CURSOR_DEFAULTS = {
+  /** 커서 크기 배율 기본값 (1 = 원본). */
+  size: 1,
+  /** 선택 가능한 커서 크기 배율 (사이드바 1x/1.5x/2x). */
+  sizes: [1, 1.5, 2] as readonly number[],
   /**
    * 스무딩 커널의 표준편차(ms). 각 이벤트에 시간 거리 기반 가우시안 가중치를 주어
    * 평균 내므로, 이 값이 클수록 흔들림이 더 강하게 감쇠된다(SPEC: 스무딩 끔/약/강).
+   * 기본값은 '약'과 같다.
    */
   smoothingMs: 120,
+  /** 스무딩 강도 프리셋(sigma, ms) — 끔/약/강. 0이면 스무딩하지 않는다. */
+  smoothingLevels: [
+    { label: '끔', value: 0 },
+    { label: '약', value: 120 },
+    { label: '강', value: 280 }
+  ] as const,
   /** 클릭 하이라이트(리플+눌림)가 지속되는 시간(ms). */
   clickHighlightMs: 400
 } as const
@@ -348,7 +368,9 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
     .map((s) => ({ t: s.t, x: s.x, y: s.y, cursor: s.cursor }))
   const cursor: CursorTrack = {
     keyframes,
-    clicks: clicks.map((c) => ({ t: c.t, x: c.x, y: c.y }))
+    clicks: clicks.map((c) => ({ t: c.t, x: c.x, y: c.y })),
+    size: CURSOR_DEFAULTS.size,
+    smoothingMs: CURSOR_DEFAULTS.smoothingMs
   }
 
   return {
@@ -502,7 +524,13 @@ function sampleCursor(track: CursorTrack, t: number): CursorSample | null {
   const kf = track.keyframes
   if (kf.length === 0) return null
 
-  const sigma = CURSOR_DEFAULTS.smoothingMs
+  const sigma = track.smoothingMs
+  // 스무딩 끔(sigma<=0): 평균 없이 가장 가까운 원본 이벤트 위치를 그대로 쓴다.
+  if (sigma <= 0) {
+    const near = nearestKeyframe(kf, t)
+    return { x: near.x, y: near.y, cursor: cursorKindAt(kf, t), size: track.size }
+  }
+
   let sumW = 0
   let sumX = 0
   let sumY = 0
@@ -517,9 +545,9 @@ function sampleCursor(track: CursorTrack, t: number): CursorSample | null {
   // t가 모든 이벤트에서 극단적으로 멀어 가중치가 언더플로하면 가장 가까운 키프레임으로 대체.
   if (sumW === 0) {
     const near = nearestKeyframe(kf, t)
-    return { x: near.x, y: near.y, cursor: cursorKindAt(kf, t) }
+    return { x: near.x, y: near.y, cursor: cursorKindAt(kf, t), size: track.size }
   }
-  return { x: sumX / sumW, y: sumY / sumW, cursor: cursorKindAt(kf, t) }
+  return { x: sumX / sumW, y: sumY / sumW, cursor: cursorKindAt(kf, t), size: track.size }
 }
 
 /** 시각 t의 활성 클릭 하이라이트. clickHighlightMs 창 안에 든 가장 최근 클릭을 고른다. */

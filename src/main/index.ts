@@ -38,6 +38,11 @@ protocol.registerSchemesAsPrivileged([
 
 let mainWindow: BrowserWindow | null = null
 
+/** 목록·녹화 등 기본 화면의 창 크기. */
+const DEFAULT_WINDOW_SIZE = { width: 1180, height: 760 }
+/** 편집기(미리보기 + 사이드바 + 타임라인) 진입 시 넓히는 창 크기(#35). */
+const EDITOR_WINDOW_SIZE = { width: 1200, height: 760 }
+
 function sidecarPath(): string {
   return app.isPackaged
     ? join(process.resourcesPath, 'recap-capture')
@@ -89,8 +94,8 @@ async function ensureScreenAccess(): Promise<boolean> {
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1180,
-    height: 760,
+    width: DEFAULT_WINDOW_SIZE.width,
+    height: DEFAULT_WINDOW_SIZE.height,
     minWidth: 720,
     minHeight: 560,
     show: false,
@@ -221,6 +226,13 @@ function registerIpc(): void {
 
   ipcMain.handle(IpcChannel.ExportCopyPath, (_e, path: string) => {
     clipboard.writeText(path)
+  })
+
+  // 편집기 진입 시 창을 넓히고 이탈 시 원래 크기로 되돌린다. 최대화 상태면 건드리지 않는다.
+  ipcMain.handle(IpcChannel.SetEditorMode, (_e, on: boolean) => {
+    if (!mainWindow || mainWindow.isMaximized() || mainWindow.isFullScreen()) return
+    const size = on ? EDITOR_WINDOW_SIZE : DEFAULT_WINDOW_SIZE
+    mainWindow.setSize(size.width, size.height, true)
   })
 }
 

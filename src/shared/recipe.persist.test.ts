@@ -170,6 +170,38 @@ describe('v1 레시피 하위호환: 키 오버레이 (#25)', () => {
   })
 })
 
+describe('구버전 레시피 하위호환: 커서 크기·스무딩 (#35)', () => {
+  it('커서 크기·스무딩이 없는 구버전 레시피를 로드하면 기본값(크기 1·약)으로 채워진다', () => {
+    const old = {
+      formatVersion: 1,
+      recipe: {
+        source,
+        zoomScale: 2,
+        durationMs: 5000,
+        zoomSegments: [],
+        cursor: { keyframes: [], clicks: [] }, // size·smoothingMs 없음
+        trim: { startMs: 0, endMs: 5000 },
+        background: { color: '#1c1c1e', padding: 0.06 },
+        badge: { visible: true }
+      }
+    }
+    const restored = parseRecipe(JSON.stringify(old))
+    expect(restored.cursor.size).toBe(1)
+    expect(restored.cursor.smoothingMs).toBe(120)
+  })
+
+  it('저장된 커서 크기·스무딩이 왕복 후 그대로 복원된다', () => {
+    const tuned = {
+      ...recipe,
+      cursor: { ...recipe.cursor, size: 2, smoothingMs: 0 }
+    }
+    const restored = parseRecipe(serializeRecipe(tuned))
+    expect(restored.cursor.size).toBe(2)
+    expect(restored.cursor.smoothingMs).toBe(0)
+    expect(restored).toEqual(tuned)
+  })
+})
+
 describe('레시피 파싱 검증', () => {
   it('JSON이 아니면 던진다', () => {
     expect(() => parseRecipe('not json')).toThrow(RecipeParseError)

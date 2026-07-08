@@ -92,7 +92,7 @@ function drawCursor(
   const cx = map.toCanvasX(cursor.x)
   const cy = map.toCanvasY(cursor.y)
   const press = click ? 1 - 0.2 * (1 - click.progress) : 1
-  drawArrowCursor(ctx, cx, cy, 18 * map.drawScale * press)
+  drawArrowCursor(ctx, cx, cy, 18 * cursor.size * map.drawScale * press)
 }
 
 /** 화살표 커서 벡터 하나. (tipX, tipY)가 커서 끝점. */

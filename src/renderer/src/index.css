@@ -168,6 +168,18 @@ body {
   filter: none;
 }
 
+/* 삭제 등 파괴적 액션 — 레드를 신호로만, 면적은 작게(외곽선). */
+.btn-danger {
+  background: transparent;
+  border-color: var(--rec);
+  color: var(--rec);
+}
+
+.btn-danger:hover {
+  background: var(--surface-3);
+  filter: none;
+}
+
 /* ── 녹화 중 화면 ─────────────────────────────────── */
 .recording {
   gap: var(--space-5);
@@ -382,24 +394,22 @@ body {
   font-weight: 600;
 }
 
+/* 3영역 그리드: 좌상단 캔버스 · 우측 사이드바 · 하단 전폭 타임라인 */
 .editor-body {
   flex: 1;
-  display: flex;
-  gap: var(--space-3);
   min-height: 0;
-}
-
-.editor-main {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'canvas sidebar'
+    'timeline timeline';
   gap: var(--space-3);
 }
 
 /* 프리뷰 캔버스가 남는 공간을 차지 (주인공) */
 .canvas-wrap {
-  flex: 1;
+  grid-area: canvas;
   min-height: 0;
   display: flex;
   align-items: center;
@@ -420,8 +430,8 @@ body {
 
 /* ── 사이드바 ─────────────────────────────────────── */
 .editor-sidebar {
-  width: 280px;
-  flex: none;
+  grid-area: sidebar;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -430,24 +440,6 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-l);
   overflow-y: auto;
-}
-
-.sidebar-toggle {
-  flex: none;
-  align-self: flex-start;
-  width: 24px;
-  height: 44px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-s);
-  background: var(--surface);
-  color: var(--text-2);
-  cursor: pointer;
-  font-size: var(--text-base);
-}
-
-.sidebar-toggle:hover {
-  background: var(--surface-3);
 }
 
 .side-section {
@@ -547,6 +539,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* 숫자가 아닌 한국어 라벨(스무딩 끔/약/강)은 시스템 폰트로 (모노스페이스 규칙). */
+.btn-scale.is-text {
+  font-family: var(--font-ui);
+}
+
 /* 활성 선택 — 화이트 primary */
 .btn-scale.is-active {
   background: var(--primary);
@@ -633,6 +630,33 @@ body {
   font-size: var(--text-xs);
 }
 
+/* ── 타임라인 영역 (하단 전폭: 재생 컨트롤 + 트랙) ── */
+.editor-timeline {
+  grid-area: timeline;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.playback {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.playback-toggle {
+  flex: none;
+  padding: var(--space-1) var(--space-3);
+  min-width: 40px;
+}
+
+.playback-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
 /* ── 타임라인 ─────────────────────────────────────── */
 .timeline {
   flex: none;
@@ -695,7 +719,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 그랩 핸들 — 세로 그립 라인으로 명확하게 */
+/* 그랩 핸들 — hover(또는 선택) 시에만 노출한다. */
 .tl-seg-edge {
   position: absolute;
   top: 0;
@@ -707,6 +731,13 @@ body {
   cursor: ew-resize;
   touch-action: none;
   background: rgba(255, 255, 255, 0.22);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.tl-seg:hover .tl-seg-edge,
+.tl-seg.is-selected .tl-seg-edge {
+  opacity: 1;
 }
 
 .tl-seg-edge::before {
@@ -731,22 +762,16 @@ body {
   border-radius: 0 var(--radius-s) var(--radius-s) 0;
 }
 
-/* 삭제 — 파괴적 액션(레드 허용). */
-.tl-seg-del {
+/* 재생 헤드 — 현재 재생 위치의 세로선. */
+.tl-playhead {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--rec);
-  color: #fff;
-  font-size: var(--text-base);
-  line-height: 1;
-  cursor: pointer;
-  z-index: 3;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text-1);
+  pointer-events: none;
+  z-index: 4;
 }
 
 /* 트림 핸들 — 앰버. */
@@ -845,16 +870,17 @@ body {
 
 /* ── 좁은 창 대응 ─────────────────────────────────── */
 @media (max-width: 820px) {
+  /* 캔버스 위, 사이드바 아래, 타임라인 맨 아래로 한 컬럼에 쌓는다. */
   .editor-body {
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      'canvas'
+      'sidebar'
+      'timeline';
   }
 
   .editor-sidebar {
-    width: 100%;
     max-height: 42vh;
-  }
-
-  .sidebar-toggle {
-    display: none;
   }
 }
