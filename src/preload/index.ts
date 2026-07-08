@@ -8,6 +8,7 @@ import {
 } from '../shared/ipc'
 import type { RenderRecipe } from '../shared/recipe'
 import type { ExportFormat } from '../shared/export-preset'
+import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
 
 /** 렌더러에 노출되는 안전한 API 표면. */
 const api = {
@@ -51,7 +52,15 @@ const api = {
   /** 온보딩 완료 여부를 조회한다. 앱 시작 시 온보딩/기존 화면 분기에 쓴다. */
   onboardingStatus: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.OnboardingStatus),
   /** 온보딩 완료를 로컬에 저장한다. 마지막 단계 완료 액션에서 호출한다. */
-  completeOnboarding: (): Promise<void> => ipcRenderer.invoke(IpcChannel.OnboardingComplete)
+  completeOnboarding: (): Promise<void> => ipcRenderer.invoke(IpcChannel.OnboardingComplete),
+  /** 화면 녹화·손쉬운 사용 권한의 granted 여부를 조회한다(권한 단계 250ms 폴링). */
+  getPermissionStatus: (): Promise<PermissionStatus> =>
+    ipcRenderer.invoke(IpcChannel.PermissionStatus),
+  /** 지정한 권한 종류의 시스템 설정 패널을 연다(화면 녹화는 열기 전 목록 등록). */
+  openPermissionSettings: (kind: PermissionKind): Promise<void> =>
+    ipcRenderer.invoke(IpcChannel.OpenPermissionSettings, kind),
+  /** 재시작 확인 다이얼로그를 띄우고, 수락 시 앱을 재시작한다. */
+  confirmRestart: (): Promise<void> => ipcRenderer.invoke(IpcChannel.ConfirmRestart)
 }
 
 contextBridge.exposeInMainWorld('recap', api)

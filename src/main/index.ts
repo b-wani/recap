@@ -10,7 +10,8 @@ import {
   desktopCapturer,
   nativeImage,
   globalShortcut,
-  Notification
+  Notification,
+  dialog
 } from 'electron'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -35,6 +36,7 @@ import {
 } from '../shared/ipc'
 import type { RenderRecipe } from '../shared/recipe'
 import type { ExportFormat } from '../shared/export-preset'
+import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
 
 /** 원본 영상 파일을 렌더러 미리보기에 안전하게 공급하는 커스텀 스킴. */
 const MEDIA_SCHEME = 'recap-media'
@@ -162,6 +164,68 @@ async function ensureScreenAccess(): Promise<boolean> {
     // 프롬프트 유도가 목적이라 결과는 쓰지 않는다.
   }
   return systemPreferences.getMediaAccessStatus('screen') === 'granted'
+}
+
+/**
+ * 온보딩 권한 단계가 폴링으로 읽는 두 권한의 granted 상태. 화면 녹화는
+ * getMediaAccessStatus('screen'), 손쉬운 사용은 isTrustedAccessibilityClient(false)로
+ * 읽는다(인자 false — 프롬프트를 유발하지 않는다). 비 macOS는 충족으로 간주한다
+ * (기존 ensureScreenAccess의 darwin 분기 관례).
+ */
+function readPermissionStatus(): PermissionStatus {
+  if (process.platform !== 'darwin') return { screen: true, accessibility: true }
+  return {
+    screen: systemPreferences.getMediaAccessStatus('screen') === 'granted',
+    accessibility: systemPreferences.isTrustedAccessibilityClient(false)
+  }
+}
+
+/**
+ * 지정한 권한 종류의 시스템 설정 패널을 연다. 화면 녹화는 열기 전에
+ * desktopCapturer.getSources()를 1회 호출해 이 앱이 '화면 기록' 목록에 등록되도록
+ * 보장한다(결과는 버린다). 비 macOS에서는 할 일이 없다.
+ */
+async function openPermissionSettings(kind: PermissionKind): Promise<void> {
+  if (process.platform !== 'darwin') return
+  if (kind === 'screen') {
+    try {
+      await desktopCapturer.getSources({ types: ['screen'] })
+    } catch {
+      // 목록 등록이 목적이라 결과는 쓰지 않는다.
+    }
+    await shell.openExternal(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture'
+    )
+  } else {
+    await shell.openExternal(
+      'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
+    )
+  }
+}
+
+/**
+ * 권한 적용을 위한 재시작 확인 다이얼로그를 띄우고, 수락 시 앱을 재시작한다.
+ * macOS는 권한을 켜도 실행 중인 프로세스에 즉시 반영되지 않을 수 있어, 온보딩이
+ * 권한 granted 전이를 감지하면 이 다이얼로그로 안내한다(두 권한 동일 정책).
+ */
+async function confirmRestart(): Promise<void> {
+  const options = {
+    type: 'question' as const,
+    buttons: ['재시작할게요', '아직이요'],
+    defaultId: 0,
+    cancelId: 1,
+    message: '권한을 적용하려면 재시작이 필요해요',
+    detail:
+      'macOS는 권한을 켜도 실행 중인 앱에는 바로 반영되지 않을 수 있어요. ' +
+      '지금 재시작하면 방금 허용한 권한이 적용됩니다.'
+  }
+  const { response } = mainWindow
+    ? await dialog.showMessageBox(mainWindow, options)
+    : await dialog.showMessageBox(options)
+  if (response === 0) {
+    app.relaunch()
+    app.exit(0)
+  }
 }
 
 /**
@@ -373,6 +437,13 @@ function registerIpc(): void {
   ipcMain.handle(IpcChannel.OnboardingComplete, () =>
     saveOnboardingComplete(app.getPath('userData'))
   )
+
+  // 온보딩 권한 단계: 상태 조회(폴링) · 설정 패널 열기 · 재시작 확인 다이얼로그.
+  ipcMain.handle(IpcChannel.PermissionStatus, (): PermissionStatus => readPermissionStatus())
+  ipcMain.handle(IpcChannel.OpenPermissionSettings, (_e, kind: PermissionKind) =>
+    openPermissionSettings(kind)
+  )
+  ipcMain.handle(IpcChannel.ConfirmRestart, () => confirmRestart())
 }
 
 // dev 모드에서도 메뉴바·Dock·창 타이틀이 제품명으로 뜨도록 앱 이름을 고정한다
