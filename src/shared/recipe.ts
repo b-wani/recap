@@ -94,15 +94,38 @@ export interface Trim {
   endMs: number
 }
 
+/** 배경 채우기 종류 — 단색 또는 그라디언트. 이미지/월페이퍼는 범위 밖. */
+export type BackgroundKind = 'color' | 'gradient'
+
+/** 선형 그라디언트 채우기 — 영상 콘텐츠(배경)의 데이터다. UI 크롬 색이 아니다. */
+export interface GradientFill {
+  /** 그라디언트 각도(deg). 0 = 위→아래, 90 = 왼→오른쪽. */
+  angle: number
+  /** 색 정지점(CSS color) — 시작색·끝색 순서. */
+  stops: [string, string]
+}
+
 /**
- * 배경/패딩 스타일 — 첨부했을 때 보기 좋도록 원본 프레임 둘레에 입히는 여백과 배경.
- * 경량 편집으로 조절하며, 미리보기와 익스포트에 동일하게 반영된다.
+ * 배경/패딩 스타일 — 첨부했을 때 보기 좋도록 원본 프레임 둘레에 입히는 여백·배경과,
+ * 콘텐츠 영역의 라운딩·드롭 섀도. 경량 편집으로 조절하며, 미리보기와 익스포트에 동일하게
+ * 반영된다.
  */
 export interface BackgroundStyle {
-  /** 배경 채우기 색 (CSS color). */
+  /** 배경 채우기 종류. */
+  type: BackgroundKind
+  /** 단색 채우기 색 (type='color'). type='gradient'여도 마지막 선택을 보존한다. */
   color: string
+  /** 그라디언트 채우기 (type='gradient'). type='color'여도 마지막 선택을 보존한다. */
+  gradient: GradientFill
   /** 패딩 두께 — 프레임 짧은 변 대비 비율 [0, 0.4]. 0이면 여백 없음. */
   padding: number
+  /**
+   * 콘텐츠 영역 모서리 라운딩(논리 px). 0이면 각진 모서리. 프레임 해상도에 비례해
+   * 스케일되므로(compose) Retina·저해상도에서 같은 인상을 준다.
+   */
+  cornerRadius: number
+  /** 콘텐츠 영역 드롭 섀도 강도 [0, 1]. 0이면 섀도 없음. */
+  shadow: number
 }
 
 /**
@@ -287,12 +310,37 @@ export const KEYSTROKE_DEFAULTS = {
   holdMs: 1200
 } as const
 
-/** 배경/패딩·배지 기본값. 유도 시 레시피에 담기고, 경량 편집으로 바뀐다. */
+/**
+ * 그라디언트 배경 프리셋 — 차분하고 세련된 톤(GitHub 데모 영상용). 요란한 무지개는 없다.
+ * 프리셋 색은 영상 콘텐츠(배경) 데이터이므로 UI 크롬 색 규칙과 무관하게 여기서 정의한다.
+ * 저장 시엔 gradient 정지점이 그대로 레시피에 담기므로(자체 완결), 프리셋 목록이 바뀌어도
+ * 기존 저장본은 영향받지 않는다. 사이드바 스와치는 이 목록으로 그린다.
+ */
+export const GRADIENT_PRESETS: readonly { id: string; label: string; gradient: GradientFill }[] = [
+  { id: 'slate', label: '슬레이트', gradient: { angle: 145, stops: ['#2b2b30', '#161618'] } },
+  { id: 'graphite', label: '그래파이트', gradient: { angle: 145, stops: ['#3a3a42', '#202024'] } },
+  { id: 'indigo', label: '인디고', gradient: { angle: 145, stops: ['#2e2a44', '#191826'] } },
+  { id: 'teal', label: '틸', gradient: { angle: 145, stops: ['#1f3a3a', '#12201f'] } },
+  { id: 'plum', label: '플럼', gradient: { angle: 145, stops: ['#3a2a3a', '#1d1620'] } }
+] as const
+
+/** 섀도를 켤 때의 기본 강도. 사이드바 토글이 이 값과 0(끔) 사이를 오간다. */
+export const SHADOW_ON = 0.45
+
+/** 배경/패딩·배지 기본값. 유도(신규 녹화) 시 레시피에 담기고, 경량 편집으로 바뀐다. */
 export const COMPOSITE_DEFAULTS = {
-  /** 기본 배경색. */
+  /** 기본 배경 종류 — 신규 녹화는 그라디언트("기본값이 곧 완성본"). */
+  backgroundType: 'gradient' as BackgroundKind,
+  /** 기본 단색 배경색(그라디언트로 시작해도 단색 전환 시 쓸 값). */
   backgroundColor: '#1c1c1e',
-  /** 기본 패딩 비율 (짧은 변의 6%). */
-  padding: 0.06,
+  /** 기본 그라디언트 — 첫 프리셋(슬레이트). */
+  gradient: GRADIENT_PRESETS[0].gradient,
+  /** 기본 패딩 비율 (짧은 변의 8%). */
+  padding: 0.08,
+  /** 기본 라운딩(논리 px). */
+  cornerRadius: 12,
+  /** 신규 녹화는 섀도를 기본으로 켠다. */
+  shadow: SHADOW_ON,
   /** 배지는 기본으로 켜 둔다. */
   badgeVisible: true,
   /** 맥락 문자열 기본값 — 비어 있음(맥락 배지 숨김). */
@@ -385,8 +433,12 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
     cursor,
     trim: { startMs: 0, endMs: track.durationMs },
     background: {
+      type: COMPOSITE_DEFAULTS.backgroundType,
       color: COMPOSITE_DEFAULTS.backgroundColor,
-      padding: COMPOSITE_DEFAULTS.padding
+      gradient: COMPOSITE_DEFAULTS.gradient,
+      padding: COMPOSITE_DEFAULTS.padding,
+      cornerRadius: COMPOSITE_DEFAULTS.cornerRadius,
+      shadow: COMPOSITE_DEFAULTS.shadow
     },
     badge: {
       visible: COMPOSITE_DEFAULTS.badgeVisible,

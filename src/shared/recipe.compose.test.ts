@@ -23,8 +23,12 @@ describe('합성 파라미터 샘플링: (렌더 레시피, 시각 t) → 프레
     expect(comp.camera).toEqual({ scale: 1, x: 500, y: 400 })
     // 배경/패딩: 기본값이 그대로 실린다.
     expect(comp.background).toEqual({
+      type: COMPOSITE_DEFAULTS.backgroundType,
       color: COMPOSITE_DEFAULTS.backgroundColor,
-      padding: COMPOSITE_DEFAULTS.padding
+      gradient: COMPOSITE_DEFAULTS.gradient,
+      padding: COMPOSITE_DEFAULTS.padding,
+      cornerRadius: COMPOSITE_DEFAULTS.cornerRadius,
+      shadow: COMPOSITE_DEFAULTS.shadow
     })
     // 배지: 기본 on, 라벨은 녹화된 화면 크기, 맥락은 기본 빈 문자열.
     expect(comp.badge).toEqual({ visible: true, label: '1000×800', contextLabel: '' })
@@ -77,9 +81,19 @@ describe('합성 파라미터 샘플링: (렌더 레시피, 시각 t) → 프레
     expect(sampleComposition(withContext, 1000).badge.contextLabel).toBe('#24')
   })
 
-  it('배경/패딩을 조절하면 샘플링 출력에 그대로 반영된다', () => {
-    const styled = { ...recipe, background: { color: '#000000', padding: 0.2 } }
-    expect(sampleComposition(styled, 0).background).toEqual({ color: '#000000', padding: 0.2 })
+  it('배경/패딩·라운딩·섀도를 조절하면 샘플링 출력에 그대로 반영된다', () => {
+    const styled = {
+      ...recipe,
+      background: {
+        ...recipe.background,
+        type: 'color' as const,
+        color: '#000000',
+        padding: 0.2,
+        cornerRadius: 20,
+        shadow: 0.6
+      }
+    }
+    expect(sampleComposition(styled, 0).background).toEqual(styled.background)
   })
 
   describe('키 오버레이 샘플링 (#25)', () => {
@@ -142,8 +156,12 @@ describe('합성 파라미터 샘플링: (렌더 레시피, 시각 t) → 프레
     const comp = sampleComposition(recipe, 1000)
     expect(comp.camera.scale).toBe(2)
     expect(comp.background).toEqual({
+      type: COMPOSITE_DEFAULTS.backgroundType,
       color: COMPOSITE_DEFAULTS.backgroundColor,
-      padding: COMPOSITE_DEFAULTS.padding
+      gradient: COMPOSITE_DEFAULTS.gradient,
+      padding: COMPOSITE_DEFAULTS.padding,
+      cornerRadius: COMPOSITE_DEFAULTS.cornerRadius,
+      shadow: COMPOSITE_DEFAULTS.shadow
     })
     expect(comp.badge).toEqual({ visible: true, label: '1000×800', contextLabel: '' })
   })

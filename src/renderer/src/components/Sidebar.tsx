@@ -1,5 +1,7 @@
 import {
   CURSOR_DEFAULTS,
+  GRADIENT_PRESETS,
+  SHADOW_ON,
   ZOOM_DEFAULTS,
   type RenderRecipe
 } from '../../../shared/recipe'
@@ -72,19 +74,54 @@ export function Sidebar({
   // 기본 패널.
   return (
     <aside className="editor-sidebar">
-      {/* ① 배경 / 패딩 */}
+      {/* ① 배경 / 패딩 / 라운딩 / 섀도 */}
       <fieldset className="side-section">
         <legend className="side-section-title">배경</legend>
-        <label className="control control-row">
-          <span>배경색</span>
-          <input
-            type="color"
-            value={recipe.background.color}
-            onChange={(e) =>
-              update((r) => ({ ...r, background: { ...r.background, color: e.target.value } }))
-            }
-          />
-        </label>
+        <div className="control">
+          <span>스타일</span>
+          <div className="bg-swatches">
+            {GRADIENT_PRESETS.map((p) => {
+              const active =
+                recipe.background.type === 'gradient' &&
+                recipe.background.gradient.stops[0] === p.gradient.stops[0] &&
+                recipe.background.gradient.stops[1] === p.gradient.stops[1]
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  title={p.label}
+                  aria-label={p.label}
+                  className={`bg-swatch${active ? ' is-active' : ''}`}
+                  style={{
+                    background: `linear-gradient(160deg, ${p.gradient.stops[0]}, ${p.gradient.stops[1]})`
+                  }}
+                  onClick={() =>
+                    update((r) => ({
+                      ...r,
+                      background: { ...r.background, type: 'gradient', gradient: p.gradient }
+                    }))
+                  }
+                />
+              )
+            })}
+            <label
+              className={`bg-swatch bg-swatch-solid${recipe.background.type === 'color' ? ' is-active' : ''}`}
+              title="단색"
+              style={{ background: recipe.background.color }}
+            >
+              <input
+                type="color"
+                value={recipe.background.color}
+                onChange={(e) =>
+                  update((r) => ({
+                    ...r,
+                    background: { ...r.background, type: 'color', color: e.target.value }
+                  }))
+                }
+              />
+            </label>
+          </div>
+        </div>
         <label className="control">
           <span className="control-row">
             <span>패딩</span>
@@ -103,6 +140,38 @@ export function Sidebar({
               }))
             }
           />
+        </label>
+        <label className="control">
+          <span className="control-row">
+            <span>라운딩</span>
+            <span className="control-value">{Math.round(recipe.background.cornerRadius)}px</span>
+          </span>
+          <input
+            type="range"
+            min={0}
+            max={32}
+            step={1}
+            value={recipe.background.cornerRadius}
+            onChange={(e) =>
+              update((r) => ({
+                ...r,
+                background: { ...r.background, cornerRadius: Number(e.target.value) }
+              }))
+            }
+          />
+        </label>
+        <label className="control control-check">
+          <input
+            type="checkbox"
+            checked={recipe.background.shadow > 0}
+            onChange={(e) =>
+              update((r) => ({
+                ...r,
+                background: { ...r.background, shadow: e.target.checked ? SHADOW_ON : 0 }
+              }))
+            }
+          />
+          <span>드롭 섀도</span>
         </label>
       </fieldset>
 

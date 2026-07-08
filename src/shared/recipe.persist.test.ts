@@ -53,7 +53,14 @@ describe('레시피 직렬화 왕복: 저장 → 로드 후 동일한 샘플링 
       zoomScale: 2.5,
       zoomSegments: [recipe.zoomSegments[1]], // 첫 구간 삭제, 둘째만 남김
       trim: { startMs: 500, endMs: recipe.durationMs - 500 }, // 앞뒤 트리밍
-      background: { color: '#ff8800', padding: 0.2 }, // 배경색·패딩 변경
+      background: {
+        type: 'color' as const,
+        color: '#ff8800',
+        gradient: recipe.background.gradient,
+        padding: 0.2,
+        cornerRadius: 18,
+        shadow: 0.5
+      }, // 배경색·패딩·라운딩·섀도 변경
       badge: { visible: false, contextLabel: 'feat/v2 @ abc123' } // 배지 끔·맥락 입력
     }
     const restored = parseRecipe(serializeRecipe(edited))
@@ -199,6 +206,68 @@ describe('구버전 레시피 하위호환: 커서 크기·스무딩 (#35)', () 
     expect(restored.cursor.size).toBe(2)
     expect(restored.cursor.smoothingMs).toBe(0)
     expect(restored).toEqual(tuned)
+  })
+})
+
+describe('구버전 레시피 하위호환: 배경 폴리싱 (#36)', () => {
+  it('type·gradient·cornerRadius·shadow가 없는 구버전 레시피는 기존 모습으로 로드된다 (단색·라운딩0·섀도off)', () => {
+    const old = {
+      formatVersion: 1,
+      recipe: {
+        source,
+        zoomScale: 2,
+        durationMs: 5000,
+        zoomSegments: [],
+        cursor: { keyframes: [], clicks: [] },
+        trim: { startMs: 0, endMs: 5000 },
+        // 구버전 배경 — color·padding만.
+        background: { color: '#1c1c1e', padding: 0.06 },
+        badge: { visible: true }
+      }
+    }
+    const restored = parseRecipe(JSON.stringify(old))
+    // 신규 폴리싱 기본값이 아니라 "옛 모습"을 유지해야 한다.
+    expect(restored.background.type).toBe('color')
+    expect(restored.background.color).toBe('#1c1c1e')
+    expect(restored.background.padding).toBe(0.06)
+    expect(restored.background.cornerRadius).toBe(0)
+    expect(restored.background.shadow).toBe(0)
+    // 그라디언트는 채워지지만 type='color'라 그려지지 않는다.
+    expect(restored.background.gradient.stops).toHaveLength(2)
+  })
+
+  it('신규 유도 레시피(deriveRecipe)는 폴리싱 기본값을 받는다 (그라디언트·패딩8%·라운딩12·섀도on)', () => {
+    // recipe는 파일 상단에서 deriveRecipe로 만든 신규 레시피다.
+    expect(recipe.background.type).toBe('gradient')
+    expect(recipe.background.padding).toBe(0.08)
+    expect(recipe.background.cornerRadius).toBe(12)
+    expect(recipe.background.shadow).toBeGreaterThan(0)
+  })
+
+  it('저장된 그라디언트·라운딩·섀도가 왕복 후 그대로 복원된다', () => {
+    const tuned = {
+      ...recipe,
+      background: {
+        ...recipe.background,
+        type: 'gradient' as const,
+        gradient: { angle: 90, stops: ['#123456', '#654321'] as [string, string] },
+        cornerRadius: 24,
+        shadow: 0.7
+      }
+    }
+    const restored = parseRecipe(serializeRecipe(tuned))
+    expect(restored.background).toEqual(tuned.background)
+    expect(restored).toEqual(tuned)
+  })
+
+  it('그라디언트 정지점이 2개가 아니면 파싱을 거부한다', () => {
+    const broken = {
+      ...recipe,
+      background: { ...recipe.background, gradient: { angle: 0, stops: ['#111111'] } }
+    }
+    expect(() => parseRecipe(JSON.stringify({ formatVersion: 1, recipe: broken }))).toThrow(
+      RecipeParseError
+    )
   })
 })
 

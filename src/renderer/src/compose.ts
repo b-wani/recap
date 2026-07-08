@@ -19,8 +19,15 @@ interface Mapping {
 }
 
 /**
+ * 라운딩(논리 px)을 프레임 해상도에 비례시키는 기준 짧은 변(논리 px). 프레임 짧은 변이 이
+ * 값이면 cornerRadius가 곧 실제 px가 되고, Retina처럼 픽셀이 더 크면 그만큼 커진다 — 어떤
+ * 해상도에서도 같은 인상을 준다.
+ */
+const RADIUS_REFERENCE_SHORT_SIDE = 800
+
+/**
  * 합성 파라미터 한 프레임을 그린다. 컨텍스트의 캔버스는 원본 크기(source)로 맞춰져 있다고 본다.
- * 순서: 배경 채우기 → 패딩 안쪽에 카메라 뷰 → 클릭 하이라이트·커서 → (켜져 있으면) 배지.
+ * 순서: 배경 채우기 → (섀도) → 라운딩 클립 안에 카메라 뷰·오버레이 → (켜져 있으면) 배지.
  */
 export function drawComposition(
   ctx: Ctx,
@@ -32,9 +39,8 @@ export function drawComposition(
   const W = source.width
   const H = source.height
 
-  // 배경.
-  ctx.fillStyle = background.color
-  ctx.fillRect(0, 0, W, H)
+  // 배경 — 단색 또는 그라디언트.
+  fillBackground(ctx, background, W, H)
 
   // 패딩 인셋 — 짧은 변 대비 비율. 콘텐츠는 이 안쪽에 그린다.
   const pad = Math.min(W, H) * background.padding
@@ -42,6 +48,30 @@ export function drawComposition(
   const dy = pad
   const dw = W - 2 * pad
   const dh = H - 2 * pad
+
+  // 라운딩 반경(px) — 논리 px를 프레임 해상도에 비례시키고, 콘텐츠 반변을 넘지 않게 가둔다.
+  const radius = Math.max(
+    0,
+    Math.min(background.cornerRadius * (Math.min(W, H) / RADIUS_REFERENCE_SHORT_SIDE), dw / 2, dh / 2)
+  )
+
+  // 드롭 섀도 — 콘텐츠 실루엣을 라운딩 사각형으로 한 번 채워 둘레에 그림자를 드리운다.
+  // (그 위에 불투명한 영상이 덮이므로 실루엣 자체는 보이지 않고 그림자만 남는다.)
+  if (background.shadow > 0) {
+    ctx.save()
+    ctx.shadowColor = `rgba(0, 0, 0, ${Math.min(1, background.shadow)})`
+    ctx.shadowBlur = Math.min(W, H) * 0.05 * background.shadow + Math.min(W, H) * 0.01
+    ctx.shadowOffsetY = Math.min(W, H) * 0.012
+    ctx.fillStyle = '#000000'
+    roundRect(ctx, dx, dy, dw, dh, radius)
+    ctx.fill()
+    ctx.restore()
+  }
+
+  // 라운딩 클립 안에서 카메라 뷰와 커서·클릭 오버레이를 그린다(모서리가 함께 깎인다).
+  ctx.save()
+  roundRect(ctx, dx, dy, dw, dh, radius)
+  ctx.clip()
 
   // 카메라가 지정한 원본 영역을 인셋 영역에 그린다.
   const viewW = W / camera.scale
@@ -58,12 +88,38 @@ export function drawComposition(
   }
   if (click) drawClickHighlight(ctx, click, map)
   if (cursor) drawCursor(ctx, cursor, click, map)
+  ctx.restore()
 
-  // 뷰포트 크기 배지 + (있으면) 맥락 배지.
+  // 뷰포트 크기 배지 + (있으면) 맥락 배지. 배경(패딩) 위 고정 좌표라 클립 밖에서 그린다.
   if (badge.visible) drawBadges(ctx, badge, W, H)
 
   // 키 입력 오버레이 — 화면 하단 중앙, 카메라 변환과 무관한 고정 좌표.
   if (keyOverlay) drawKeyOverlay(ctx, keyOverlay, W, H)
+}
+
+/** 배경을 채운다 — 단색 또는 선형 그라디언트(angle deg). */
+function fillBackground(
+  ctx: Ctx,
+  background: FrameComposition['background'],
+  W: number,
+  H: number
+): void {
+  if (background.type === 'gradient') {
+    const rad = (background.gradient.angle * Math.PI) / 180
+    // 각도 방향(0=위→아래, 90=왼→오른쪽)으로 프레임 중심을 가로지르는 그라디언트 축.
+    const cx = W / 2
+    const cy = H / 2
+    const ux = Math.sin(rad)
+    const uy = Math.cos(rad)
+    const half = (Math.abs(ux) * W + Math.abs(uy) * H) / 2
+    const grad = ctx.createLinearGradient(cx - ux * half, cy - uy * half, cx + ux * half, cy + uy * half)
+    grad.addColorStop(0, background.gradient.stops[0])
+    grad.addColorStop(1, background.gradient.stops[1])
+    ctx.fillStyle = grad
+  } else {
+    ctx.fillStyle = background.color
+  }
+  ctx.fillRect(0, 0, W, H)
 }
 
 /** 클릭 하이라이트: 퍼지는 리플(원). 커서 아래에 먼저 그린다. */

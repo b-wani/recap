@@ -35,7 +35,14 @@ const recipe: RenderRecipe = {
     smoothingMs: 120
   },
   trim: { startMs: 250, endMs: 4750 },
-  background: { color: '#1c1c1e', padding: 0.06 },
+  background: {
+    type: 'color',
+    color: '#1c1c1e',
+    gradient: { angle: 145, stops: ['#2b2b30', '#161618'] },
+    padding: 0.06,
+    cornerRadius: 0,
+    shadow: 0
+  },
   badge: { visible: true, contextLabel: '' },
   keystrokes: { keys: [], overlayVisible: false }
 }

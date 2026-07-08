@@ -8,7 +8,7 @@
 
 import type { CursorKind } from './event-track'
 import type { KeySample } from './event-track'
-import { CURSOR_DEFAULTS } from './recipe'
+import { CURSOR_DEFAULTS, GRADIENT_PRESETS } from './recipe'
 import type {
   BackgroundStyle,
   BadgeConfig,
@@ -16,12 +16,16 @@ import type {
   CursorKeyframe,
   CursorTrack,
   FrameSize,
+  GradientFill,
   KeystrokeTrack,
   PanKeyframe,
   RenderRecipe,
   Trim,
   ZoomSegment
 } from './recipe'
+
+/** 구버전 레시피에 그라디언트가 없을 때 채우는 기본값(첫 프리셋). type='color'면 그려지지 않는다. */
+const DEFAULT_GRADIENT: GradientFill = GRADIENT_PRESETS[0].gradient
 
 const CURSOR_KINDS: readonly CursorKind[] = ['arrow', 'pointer', 'ibeam']
 
@@ -154,11 +158,37 @@ function validateTrim(raw: unknown): Trim {
   return { startMs: t.startMs, endMs: t.endMs }
 }
 
+/**
+ * 배경 스타일을 검증한다. 구버전 레시피(#36 이전)엔 type·gradient·cornerRadius·shadow가
+ * 없다 — 구버전 녹화는 기존 모습을 유지해야 하므로 신규 폴리싱 기본값이 아니라 "옛 모습"
+ * 기본값(단색 그대로 · 라운딩 0 · 섀도 off)으로 채운다. 신규 폴리싱 기본값은 deriveRecipe만
+ * 부여한다.
+ */
 function validateBackground(raw: unknown): BackgroundStyle {
   const b = asObject(raw, 'recipe.background')
   if (typeof b.color !== 'string') throw new RecipeParseError('recipe.background.color 누락')
   if (!isNum(b.padding)) throw new RecipeParseError('recipe.background.padding 누락')
-  return { color: b.color, padding: b.padding }
+  return {
+    // 구버전엔 종류 개념이 없다 — 단색으로 봐 기존 색을 그대로 유지한다.
+    type: b.type === 'gradient' ? 'gradient' : 'color',
+    color: b.color,
+    gradient: validateGradient(b.gradient),
+    padding: b.padding,
+    // 구버전은 각진 모서리·섀도 없음이 기존 모습이다.
+    cornerRadius: isNum(b.cornerRadius) ? b.cornerRadius : 0,
+    shadow: isNum(b.shadow) ? b.shadow : 0
+  }
+}
+
+/** 그라디언트를 검증한다. 없으면(구버전) 기본 프리셋으로 채운다 — type='color'면 그려지지 않는다. */
+function validateGradient(raw: unknown): GradientFill {
+  if (raw === undefined || raw === null) return DEFAULT_GRADIENT
+  const g = asObject(raw, 'recipe.background.gradient')
+  if (!isNum(g.angle)) throw new RecipeParseError('recipe.background.gradient.angle 누락')
+  if (!Array.isArray(g.stops) || g.stops.length !== 2 || !g.stops.every((s) => typeof s === 'string')) {
+    throw new RecipeParseError('recipe.background.gradient.stops: 색 정지점 2개 필요')
+  }
+  return { angle: g.angle, stops: [g.stops[0], g.stops[1]] }
 }
 
 function validateBadge(raw: unknown): BadgeConfig {
