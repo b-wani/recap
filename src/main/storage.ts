@@ -11,7 +11,7 @@
  * 목록을 세우고 그 편집 상태를 그대로 복원할 수 있다.
  */
 
-import { readFile, writeFile, readdir } from 'node:fs/promises'
+import { readFile, writeFile, readdir, access } from 'node:fs/promises'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import type { CaptureTarget, EventTrack } from '../shared/event-track'
@@ -22,6 +22,7 @@ import type { RecordingSummary } from '../shared/ipc'
 const MANIFEST_FILE = 'recording.json'
 const EVENTS_FILE = 'events.json'
 const RECIPE_FILE = 'recipe.json'
+const THUMBNAIL_FILE = 'thumbnail.jpg'
 
 /** 녹화 폴더가 담는 모든 것의 절대 경로 색인. 세 산출물을 하나로 묶는다. */
 export interface RecordingManifest {
@@ -56,6 +57,11 @@ export async function saveRecipe(folder: string, recipe: RenderRecipe): Promise<
   await writeFile(join(folder, RECIPE_FILE), serializeRecipe(recipe), 'utf8')
 }
 
+/** 첫 프레임 썸네일(JPEG)을 녹화 폴더에 캐시로 저장한다. 미리보기 진입 시 한 번 쓴다. */
+export async function saveThumbnail(folder: string, bytes: Buffer): Promise<void> {
+  await writeFile(join(folder, THUMBNAIL_FILE), bytes)
+}
+
 /** 다시 연 녹화가 미리보기에 필요로 하는 모든 것. */
 export interface LoadedRecording {
   folder: string
@@ -72,8 +78,14 @@ export interface LoadedRecording {
 /**
  * baseDir 아래 녹화들을 최신순으로 나열한다. 매니페스트가 없거나 손상된 폴더는
  * 목록에서 조용히 제외한다 (진행 중이거나 깨진 녹화가 목록을 막지 않도록).
+ *
+ * 썸네일 캐시가 있는 폴더는 toThumbnailUrl로 미리보기 URL을 만든다(스킴은 본체가 소유).
+ * 캐시가 없는 구버전 녹화는 thumbnailUrl 없이 그대로 나열한다.
  */
-export async function listRecordings(baseDir = recordingsBaseDir()): Promise<RecordingSummary[]> {
+export async function listRecordings(
+  baseDir = recordingsBaseDir(),
+  toThumbnailUrl?: (absPath: string) => string
+): Promise<RecordingSummary[]> {
   let entries: string[]
   try {
     entries = await readdir(baseDir)
@@ -86,15 +98,27 @@ export async function listRecordings(baseDir = recordingsBaseDir()): Promise<Rec
     const folder = join(baseDir, name)
     const manifest = await readManifest(folder)
     if (!manifest) continue
+    const thumbPath = join(folder, THUMBNAIL_FILE)
+    const hasThumb = toThumbnailUrl ? await fileExists(thumbPath) : false
     summaries.push({
       folder,
       name,
       startedAt: manifest.startedAt,
       durationMs: manifest.durationMs,
-      eventCount: manifest.eventCount
+      eventCount: manifest.eventCount,
+      ...(hasThumb ? { thumbnailUrl: toThumbnailUrl!(thumbPath) } : {})
     })
   }
   return summaries.sort((a, b) => b.startedAt - a.startedAt)
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**

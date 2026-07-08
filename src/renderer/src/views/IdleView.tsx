@@ -74,22 +74,37 @@ export function IdleView(): JSX.Element {
       >
         ● 녹화 시작
       </button>
-      {recent.length > 0 && (
+      {recent.length > 0 ? (
         <div className="recent">
           <h2 className="recent-title">최근 녹화</h2>
           <ul className="recent-list">
             {recent.map((r) => (
               <li key={r.folder}>
                 <button className="recent-item" onClick={() => window.recap.openRecording(r.folder)}>
-                  <span className="recent-name">{formatDate(r.startedAt)}</span>
-                  <span className="recent-meta">
-                    {formatElapsed(r.durationMs)} · 이벤트 {r.eventCount}개
+                  <span className="recent-thumb" aria-hidden>
+                    {r.thumbnailUrl ? (
+                      <img src={r.thumbnailUrl} alt="" />
+                    ) : (
+                      <span className="recent-thumb-fallback">🎬</span>
+                    )}
+                  </span>
+                  <span className="recent-body">
+                    <span className="recent-name">{formatDate(r.startedAt)}</span>
+                    <span className="recent-meta">
+                      {formatElapsed(r.durationMs)} · 이벤트 {r.eventCount}개
+                    </span>
                   </span>
                 </button>
               </li>
             ))}
           </ul>
         </div>
+      ) : (
+        <p className="empty-hint">
+          아직 녹화가 없어요. 위에서 캡처 대상을 고르고 녹화 시작을 누르면 첫 데모가 만들어집니다.
+          <br />
+          어디서든 <kbd>⌥⌘R</kbd> 로 바로 녹화를 시작·정지할 수 있어요.
+        </p>
       )}
     </section>
   )

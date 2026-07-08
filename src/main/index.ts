@@ -18,7 +18,7 @@ import { writeFile } from 'node:fs/promises'
 import { is } from '@electron-toolkit/utils'
 import { Recorder } from './recorder'
 import { AppTray } from './tray'
-import { listRecordings, loadRecording, saveRecipe } from './storage'
+import { listRecordings, loadRecording, saveRecipe, saveThumbnail } from './storage'
 import {
   IpcChannel,
   type CaptureTarget,
@@ -316,7 +316,12 @@ function registerIpc(): void {
 
   ipcMain.handle(
     IpcChannel.ListRecordings,
-    (): Promise<RecordingSummary[]> => listRecordings()
+    (): Promise<RecordingSummary[]> => listRecordings(undefined, mediaUrl)
+  )
+
+  // 렌더러가 미리보기 첫 프레임을 캡처한 JPEG를 녹화 폴더에 썸네일 캐시로 저장한다.
+  ipcMain.handle(IpcChannel.SaveThumbnail, (_e, folder: string, bytes: ArrayBuffer) =>
+    saveThumbnail(folder, Buffer.from(bytes))
   )
 
   ipcMain.handle(IpcChannel.OpenRecording, (_e, folder: string) => openRecordingToPreview(folder))
