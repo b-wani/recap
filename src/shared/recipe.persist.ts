@@ -8,6 +8,7 @@
 
 import type { CursorKind } from './event-track'
 import type { KeySample } from './event-track'
+import { CURSOR_DEFAULTS } from './recipe'
 import type {
   BackgroundStyle,
   BadgeConfig,
@@ -113,9 +114,12 @@ function validateCursor(raw: unknown): CursorTrack {
   const c = asObject(raw, 'recipe.cursor')
   if (!Array.isArray(c.keyframes)) throw new RecipeParseError('recipe.cursor.keyframes 누락')
   if (!Array.isArray(c.clicks)) throw new RecipeParseError('recipe.cursor.clicks 누락')
+  // v1~v3 레시피는 커서 크기·스무딩 강도가 없다 — 기본값(크기 1x·약)으로 채운다(#35).
   return {
     keyframes: c.keyframes.map(validateCursorKeyframe),
-    clicks: c.clicks.map(validateClickMark)
+    clicks: c.clicks.map(validateClickMark),
+    size: isNum(c.size) ? c.size : CURSOR_DEFAULTS.size,
+    smoothingMs: isNum(c.smoothingMs) ? c.smoothingMs : CURSOR_DEFAULTS.smoothingMs
   }
 }
 

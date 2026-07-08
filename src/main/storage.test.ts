@@ -30,7 +30,9 @@ const recipe: RenderRecipe = {
   ],
   cursor: {
     keyframes: [{ t: 1000, x: 400, y: 300, cursor: 'arrow' }],
-    clicks: [{ t: 1000, x: 400, y: 300 }]
+    clicks: [{ t: 1000, x: 400, y: 300 }],
+    size: 1,
+    smoothingMs: 120
   },
   trim: { startMs: 250, endMs: 4750 },
   background: { color: '#1c1c1e', padding: 0.06 },

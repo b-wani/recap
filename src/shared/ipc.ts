@@ -22,7 +22,9 @@ export const IpcChannel = {
   /** 저장된 파일을 Finder에서 연다. */
   ExportReveal: 'export:reveal',
   /** 저장된 파일 경로를 클립보드에 복사한다. */
-  ExportCopyPath: 'export:copy-path'
+  ExportCopyPath: 'export:copy-path',
+  /** 편집기 진입/이탈에 맞춰 창 크기를 조절한다(편집기는 넓게, 그 외엔 원래 크기). */
+  SetEditorMode: 'window:editor-mode'
 } as const
 
 /** 최근 녹화 목록의 한 항목 — 다시 열기 UI가 그린다. */

@@ -1,6 +1,5 @@
 import { useRef } from 'react'
 import {
-  deleteZoomSegment,
   moveZoomSegment,
   resizeZoomSegment,
   trimRecipe,
@@ -20,11 +19,14 @@ import type { RenderRecipe } from '../../../shared/recipe'
 export function Timeline({
   recipe,
   selected,
+  currentMs,
   onSelect,
   onChange
 }: {
   recipe: RenderRecipe
   selected: number | null
+  /** 재생 헤드 위치(ms) — 트랙 위에 세로선으로 표시한다. */
+  currentMs: number
   onSelect: (index: number | null) => void
   onChange: (recipe: RenderRecipe) => void
 }): JSX.Element {
@@ -59,11 +61,6 @@ export function Timeline({
       })
     }
 
-  const onDelete = (index: number) => (): void => {
-    onChange(deleteZoomSegment(recipe, index))
-    onSelect(null)
-  }
-
   return (
     <div className="timeline">
       <div
@@ -95,18 +92,11 @@ export function Timeline({
               className="tl-seg-edge tl-seg-edge-end"
               onPointerDown={onSegmentResize(i, 'end')}
             />
-            {selected === i && (
-              <button
-                className="tl-seg-del"
-                onPointerDown={(e) => e.stopPropagation()}
-                onClick={onDelete(i)}
-                title="줌 구간 삭제"
-              >
-                ×
-              </button>
-            )}
           </div>
         ))}
+
+        {/* 재생 헤드 — 현재 재생 위치. */}
+        <span className="tl-playhead" style={{ left: pct(currentMs) }} aria-hidden />
 
         {/* 트림 핸들 — 앞뒤로 끌어 최종 영상 범위를 정한다. */}
         <span
@@ -123,8 +113,8 @@ export function Timeline({
         />
       </div>
       <p className="tl-help">
-        줌 구간을 끌어 이동 · 가장자리로 길이 조절 · 선택 후 ×로 삭제 · 양끝 핸들로 앞뒤
-        트리밍
+        줌 구간을 끌어 이동 · 가장자리로 길이 조절 · 선택하면 사이드바에서 배율·삭제 · 양끝
+        핸들로 앞뒤 트리밍
       </p>
     </div>
   )

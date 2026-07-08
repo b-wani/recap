@@ -53,6 +53,32 @@ describe('프레임 샘플링: 스무딩된 커서 (AC 1)', () => {
   })
 })
 
+describe('커서 크기·스무딩 설정 (#35)', () => {
+  const recipe = deriveRecipe(loadTrack('event-track-jitter.json'), { source })
+
+  it('유도한 레시피의 커서 트랙은 기본 크기·스무딩을 담는다', () => {
+    expect(recipe.cursor.size).toBe(CURSOR_DEFAULTS.size)
+    expect(recipe.cursor.smoothingMs).toBe(CURSOR_DEFAULTS.smoothingMs)
+  })
+
+  it('샘플링된 커서는 레시피의 크기 배율을 그대로 옮긴다', () => {
+    const big = { ...recipe, cursor: { ...recipe.cursor, size: 2 } }
+    expect(sampleFrame(big, 250).cursor!.size).toBe(2)
+  })
+
+  it('스무딩을 끄면(sigma 0) 흔들림이 감쇠되지 않고 원본 위치를 쓴다', () => {
+    const off = { ...recipe, cursor: { ...recipe.cursor, smoothingMs: 0 } }
+    // t=100의 원본 지터 y=20 — 스무딩 끔이면 감쇠 없이 원본에 안착한다.
+    expect(sampleFrame(off, 100).cursor!.y).toBeCloseTo(20, 6)
+  })
+
+  it('스무딩이 강할수록 같은 시각의 추세 이탈이 더 줄어든다', () => {
+    const weak = sampleFrame({ ...recipe, cursor: { ...recipe.cursor, smoothingMs: 120 } }, 100)
+    const strong = sampleFrame({ ...recipe, cursor: { ...recipe.cursor, smoothingMs: 280 } }, 100)
+    expect(Math.abs(strong.cursor!.y)).toBeLessThan(Math.abs(weak.cursor!.y))
+  })
+})
+
 describe('프레임 샘플링: 클릭 하이라이트 (AC 2)', () => {
   // 클릭(down) 시각: 1000(400,300), 2500(420,310), 8000(800,600).
   const recipe = deriveRecipe(loadTrack('event-track-clicks.json'), { source })
