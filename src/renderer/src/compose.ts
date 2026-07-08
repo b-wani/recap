@@ -171,7 +171,7 @@ function drawArrowCursor(ctx: Ctx, tipX: number, tipY: number, size: number): vo
 
 /**
  * 우하단에 뷰포트 크기 배지를, 맥락 문자열이 있으면 그 왼쪽에 맥락 배지를 나란히 그린다.
- * 두 배지는 배경색으로 구분한다 — 뷰포트는 반투명 검정, 맥락은 파란 액센트.
+ * 두 배지는 배경색으로 구분한다 — 뷰포트는 반투명 검정, 맥락은 한 단계 밝은 뉴트럴 회색.
  * 카메라 변환과 무관한 화면 고정 좌표에 그린다. 크기는 프레임에 비례.
  */
 function drawBadges(
@@ -197,7 +197,7 @@ function drawBadges(
   let right = W - margin
   right = drawPill(ctx, badge.label, right, boxY, boxH, padX, radius, 'rgba(0, 0, 0, 0.55)')
   if (badge.contextLabel !== '') {
-    drawPill(ctx, badge.contextLabel, right - gap, boxY, boxH, padX, radius, 'rgba(10, 132, 255, 0.85)')
+    drawPill(ctx, badge.contextLabel, right - gap, boxY, boxH, padX, radius, 'rgba(85, 85, 90, 0.85)')
   }
 }
 
