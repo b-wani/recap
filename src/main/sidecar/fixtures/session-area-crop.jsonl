@@ -1,0 +1,6 @@
+{"type":"ready","protocolVersion":4,"rawVideoPath":"/Users/dev/Movies/Recap/2026-07-07_0915/raw.mp4","startedAt":1751879700000,"target":{"kind":"display","id":"display:1","title":"영역 (820×540)","width":820,"height":540,"sourceRect":{"x":500,"y":300,"width":820,"height":540}}}
+{"type":"event","kind":"move","t":100,"x":40,"y":60,"cursor":"arrow"}
+{"type":"event","kind":"down","t":260,"x":410,"y":270,"cursor":"pointer"}
+{"type":"event","kind":"up","t":320,"x":410,"y":270,"cursor":"pointer"}
+{"type":"event","kind":"move","t":700,"x":800,"y":520,"cursor":"arrow"}
+{"type":"stopped","rawVideoPath":"/Users/dev/Movies/Recap/2026-07-07_0915/raw.mp4","durationMs":1200,"eventCount":4}

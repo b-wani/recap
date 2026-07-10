@@ -21,6 +21,8 @@ let watchdogSeconds: TimeInterval = 10
 final class Session {
     let outputURL: URL
     let targetId: String
+    /// v4 Area crop 사각형(전역 AppKit 좌표, 좌하단 원점). nil이면 대상 전체를 캡처한다.
+    let sourceRect: CGRect?
     let recorder: ScreenRecorder
     var tracker: MouseTracker?
     var keyTracker: KeyTracker?
@@ -28,16 +30,17 @@ final class Session {
     var ready = false
     var stopping = false
 
-    init(outDir: URL, targetId: String) {
+    init(outDir: URL, targetId: String, sourceRect: CGRect? = nil) {
         try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
         self.outputURL = outDir.appendingPathComponent("raw.mp4")
         try? FileManager.default.removeItem(at: outputURL)
         self.targetId = targetId
+        self.sourceRect = sourceRect
         self.recorder = ScreenRecorder(outputURL: outputURL)
     }
 
     func run() {
-        recorder.start(targetId: targetId, onReady: { [weak self] target in
+        recorder.start(targetId: targetId, sourceRect: sourceRect, onReady: { [weak self] target in
             guard let self else { return }
             DispatchQueue.main.async { self.onReady(target) }
         }, onError: { code, message in
@@ -100,6 +103,22 @@ func optionValue(_ args: [String], _ name: String) -> String? {
     return nil
 }
 
+/// `--sourceRect x,y,w,h`(전역 AppKit 좌표·포인트)를 CGRect로 파싱한다. 값이 없으면 nil.
+/// 형식이 어긋나거나 크기가 양수가 아니면 nil을 돌려주지 않고 .invalid로 구분한다.
+enum SourceRectArg {
+    case absent
+    case rect(CGRect)
+    case invalid
+}
+
+func parseSourceRect(_ args: [String]) -> SourceRectArg {
+    guard let raw = optionValue(args, "--sourceRect") else { return .absent }
+    let parts = raw.split(separator: ",").map { Double($0.trimmingCharacters(in: .whitespaces)) }
+    guard parts.count == 4, let x = parts[0], let y = parts[1], let w = parts[2], let h = parts[3],
+          w > 0, h > 0 else { return .invalid }
+    return .rect(CGRect(x: x, y: y, width: w, height: h))
+}
+
 // MARK: - list 실행
 
 /// 선택 가능한 캡처 대상을 열거해 targets 메시지 하나를 내보내고 종료한다.
@@ -144,12 +163,21 @@ case "list":
 
 case "record":
     guard let outStr = optionValue(args, "--out") else {
-        FileHandle.standardError.write(Data("usage: recap-capture record --out <dir> --target <id>\n".utf8))
+        FileHandle.standardError.write(Data("usage: recap-capture record --out <dir> --target <id> [--sourceRect x,y,w,h]\n".utf8))
         exit(64)
     }
     // --target이 없으면 첫 디스플레이(전체 화면)로 시작한다 — 하위호환/기본값.
     let targetId = optionValue(args, "--target") ?? "display:\(CGMainDisplayID())"
-    let session = Session(outDir: URL(fileURLWithPath: outStr), targetId: targetId)
+    // v4 Area: --sourceRect가 있으면 crop 영역만 녹화한다 (display 대상에 접힌다).
+    let sourceRect: CGRect?
+    switch parseSourceRect(args) {
+    case .absent: sourceRect = nil
+    case .rect(let r): sourceRect = r
+    case .invalid:
+        FileHandle.standardError.write(Data("invalid --sourceRect (expected x,y,w,h with w,h > 0)\n".utf8))
+        exit(64)
+    }
+    let session = Session(outDir: URL(fileURLWithPath: outStr), targetId: targetId, sourceRect: sourceRect)
 
     // stdin에서 "stop" 명령을 기다린다.
     DispatchQueue.global(qos: .userInitiated).async {

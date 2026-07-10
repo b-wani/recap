@@ -22,6 +22,7 @@ final class ScreenRecorder: NSObject, SCStreamOutput {
     /// 권한을 확인하고 지정한 대상의 캡처를 시작한다.
     /// 성공하면 해석된 대상과 함께 onReady, 실패면 onError를 호출한다.
     func start(targetId: String,
+               sourceRect: CGRect? = nil,
                onReady: @escaping (_ target: ResolvedTarget) -> Void,
                onError: @escaping (_ code: String, _ message: String) -> Void) {
         SCShareableContent.getWithCompletionHandler { [weak self] content, error in
@@ -37,7 +38,8 @@ final class ScreenRecorder: NSObject, SCStreamOutput {
                 onError("no-display", "캡처할 대상을 조회하지 못했습니다.")
                 return
             }
-            guard let target = CaptureTargets.resolve(id: targetId, content: content) else {
+            guard let target = CaptureTargets.resolve(id: targetId, content: content,
+                                                      appKitSourceRect: sourceRect) else {
                 onError("target-not-found",
                         "선택한 대상(\(targetId))을 찾지 못했습니다. 창이 닫혔을 수 있습니다.")
                 return
@@ -63,6 +65,11 @@ final class ScreenRecorder: NSObject, SCStreamOutput {
         config.showsCursor = false          // 시스템 커서 제외, 렌더링 때 다시 그림
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.queueDepth = 6
+        // v4 Area: crop 영역만 캡처한다 (디스플레이 로컬·포인트). width/height는 crop 픽셀 크기라
+        // 이 영역이 그대로 원본 프레임이 된다. 창 캡처엔 적용되지 않는다(디스플레이 스트림 전용).
+        if let crop = target.cropRect {
+            config.sourceRect = crop
+        }
 
         let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
         let settings: [String: Any] = [

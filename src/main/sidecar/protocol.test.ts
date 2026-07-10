@@ -38,8 +38,41 @@ describe('사이드카 프로토콜 계약', () => {
       id: 'window:47',
       title: 'Safari — GitHub',
       width: 1200,
-      height: 800
+      height: 800,
+      // v4 (#68): 창 대상은 전역 AppKit 좌표(좌하단 원점) 프레임을 실어 선택 오버레이가
+      // 커서 아래 창을 그릴 수 있게 한다.
+      frame: { x: 100, y: 80, width: 1200, height: 800 }
     })
+  })
+
+  it('window 대상은 전역 좌표 frame을 싣고, display 대상은 싣지 않는다 (#68)', () => {
+    const msgs = parseFixture('targets.jsonl')
+    const targets = msgs[0]
+    if (targets.type !== 'targets') throw new Error('targets 메시지가 아니다')
+
+    // display 대상은 선택 하이라이트가 필요 없어 frame이 없다.
+    const display = targets.targets.find((t) => t.kind === 'display')
+    expect(display?.frame).toBeUndefined()
+
+    // 모든 window 대상은 전역 좌표 frame을 싣는다.
+    const windows = targets.targets.filter((t) => t.kind === 'window')
+    expect(windows.length).toBeGreaterThan(0)
+    for (const w of windows) {
+      expect(w.frame).toBeDefined()
+      expect(Number.isFinite(w.frame?.x)).toBe(true)
+      expect(Number.isFinite(w.frame?.y)).toBe(true)
+      expect(w.frame?.width).toBeGreaterThan(0)
+      expect(w.frame?.height).toBeGreaterThan(0)
+    }
+  })
+
+  it('frame이 온전한 사각형이 아니면 계약 위반이다 (#68)', () => {
+    // frame이 있으면 x,y,width,height가 모두 유한수여야 한다.
+    expect(() =>
+      parseSidecarLine(
+        '{"type":"ready","protocolVersion":4,"rawVideoPath":"/tmp/raw.mp4","startedAt":1,"target":{"kind":"window","id":"window:1","title":"x","width":10,"height":10,"frame":{"x":0,"y":0,"width":10}}}'
+      )
+    ).toThrow(SidecarProtocolError)
   })
 
   it('창 녹화 세션을 녹화 참조와 이벤트 트랙으로 분리하고 대상을 양쪽에 실어 준다', () => {
@@ -53,7 +86,8 @@ describe('사이드카 프로토콜 계약', () => {
       id: 'window:47',
       title: 'Safari — GitHub',
       width: 1200,
-      height: 800
+      height: 800,
+      frame: { x: 100, y: 80, width: 1200, height: 800 }
     }
 
     // 녹화 참조 — 원본 영상 파일과 녹화된 대상을 가리킨다.
@@ -136,6 +170,76 @@ describe('사이드카 프로토콜 계약', () => {
     expect(() => parseSidecarLine('{"type":"key","t":800}')).toThrow(SidecarProtocolError)
     expect(() => parseSidecarLine('{"type":"key","combo":"⌘S"}')).toThrow(SidecarProtocolError)
     expect(() => parseSidecarLine('{"type":"key","t":800,"combo":""}')).toThrow(SidecarProtocolError)
+  })
+
+  it('Area crop 세션은 crop을 기존 대상 모델에 접어 ready.target으로 낸다 (#68)', () => {
+    const outcome = foldSidecarMessages(parseFixture('session-area-crop.jsonl'))
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+
+    // crop이 기존 대상 모델에 접혀 나온다: 부모 kind는 여전히 display,
+    // width/height는 crop 크기(포인트), sourceRect는 전역 crop 사각형.
+    const target = outcome.recording.target
+    expect(target.kind).toBe('display')
+    expect(target.width).toBe(820)
+    expect(target.height).toBe(540)
+    expect(target.sourceRect).toEqual({ x: 500, y: 300, width: 820, height: 540 })
+
+    // 이벤트 트랙에도 동일 대상이 실린다 (자동 줌 클램핑 경계).
+    expect(outcome.eventTrack.target).toEqual(target)
+  })
+
+  it('sourceRect는 parseTarget에서 왕복(round-trip)한다 (#68)', () => {
+    const msg = parseSidecarLine(
+      '{"type":"ready","protocolVersion":4,"rawVideoPath":"/tmp/raw.mp4","startedAt":1,"target":{"kind":"display","id":"display:1","title":"영역","width":820,"height":540,"sourceRect":{"x":500,"y":300,"width":820,"height":540}}}'
+    )
+    if (msg.type !== 'ready') throw new Error('ready 메시지가 아니다')
+    expect(msg.target.sourceRect).toEqual({ x: 500, y: 300, width: 820, height: 540 })
+  })
+
+  it('sourceRect가 온전한 사각형이 아니면 계약 위반이다 (#68)', () => {
+    expect(() =>
+      parseSidecarLine(
+        '{"type":"ready","protocolVersion":4,"rawVideoPath":"/tmp/raw.mp4","startedAt":1,"target":{"kind":"display","id":"display:1","title":"영역","width":820,"height":540,"sourceRect":{"x":500,"y":300,"height":540}}}'
+      )
+    ).toThrow(SidecarProtocolError)
+  })
+
+  it('이벤트 좌표 계약(좌상단 원점·포인트·[0,w]×[0,h])이 display/window/Area에서 동일하다 (#68)', () => {
+    // display(창 전체) — session-with-clicks, window kind이나 좌표 계약은 동일하다.
+    const window = foldSidecarMessages(parseFixture('session-with-clicks.jsonl'))
+    // Area crop — 좌표는 crop 좌상단 원점 포인트, [0,820]×[0,540] 안.
+    const area = foldSidecarMessages(parseFixture('session-area-crop.jsonl'))
+    expect(window.ok && area.ok).toBe(true)
+    if (!window.ok || !area.ok) return
+
+    for (const outcome of [window, area]) {
+      const target = outcome.eventTrack.target
+      if (!target) throw new Error('대상 누락')
+      // 모든 좌표가 대상 경계 [0,w]×[0,h] 안에 있고 원점은 좌상단이다.
+      for (const s of outcome.eventTrack.samples) {
+        expect(s.x).toBeGreaterThanOrEqual(0)
+        expect(s.x).toBeLessThanOrEqual(target.width)
+        expect(s.y).toBeGreaterThanOrEqual(0)
+        expect(s.y).toBeLessThanOrEqual(target.height)
+      }
+    }
+  })
+
+  it('protocolVersion=4 세션은 수용된다 (#68)', () => {
+    const outcome = foldSidecarMessages(parseFixture('session-with-clicks.jsonl'))
+    expect(outcome.ok).toBe(true)
+    if (!outcome.ok) return
+    expect(outcome.eventTrack.protocolVersion).toBe(4)
+    expect(SIDECAR_PROTOCOL_VERSION).toBe(4)
+  })
+
+  it('protocolVersion이 본체(4)와 다르면 세션을 거부한다 (#68)', () => {
+    const msgs = parseFixture('session-with-clicks.jsonl')
+    const ready = msgs[0]
+    if (ready.type !== 'ready') throw new Error('픽스처 전제 위반')
+    ready.protocolVersion = 3
+    expect(() => foldSidecarMessages(msgs)).toThrow(SidecarProtocolError)
   })
 
   it('권한 거부 세션은 실패 결과로 표면화된다 (조용히 실패하지 않는다)', () => {

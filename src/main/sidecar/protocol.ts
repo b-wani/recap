@@ -16,7 +16,8 @@ import type {
   KeySample,
   EventTrack,
   CaptureTarget,
-  CaptureTargetKind
+  CaptureTargetKind,
+  Rect
 } from '../../shared/event-track'
 
 // 이벤트 트랙·캡처 대상 도메인 타입은 shared에 있다 (자동 효과 파이프라인·미리보기도 공유).
@@ -28,11 +29,12 @@ export type {
   KeySample,
   EventTrack,
   CaptureTarget,
-  CaptureTargetKind
+  CaptureTargetKind,
+  Rect
 }
 
 /** 계약 버전. 호환 불가능한 변경 시 올린다. ready 메시지로 본체가 검증한다. */
-export const SIDECAR_PROTOCOL_VERSION = 3
+export const SIDECAR_PROTOCOL_VERSION = 4
 
 /** 본체 → 사이드카 명령. 사이드카 stdin에 한 줄씩 쓴다. */
 export const SidecarCommand = {
@@ -155,6 +157,17 @@ function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0
 }
 
+/** 선택적 사각형(frame·sourceRect) 하나를 검증한다. 있으면 온전한 Rect여야 한다. */
+function parseOptionalRect(raw: unknown, where: string): Rect | undefined {
+  if (raw === undefined) return undefined
+  if (typeof raw !== 'object' || raw === null)
+    throw new SidecarProtocolError(`${where}가 객체가 아니다`)
+  const r = raw as Record<string, unknown>
+  if (!isFiniteNumber(r.x) || !isFiniteNumber(r.y) || !isFiniteNumber(r.width) || !isFiniteNumber(r.height))
+    throw new SidecarProtocolError(`${where}는 x,y,width,height 모두 유한수여야 한다`)
+  return { x: r.x, y: r.y, width: r.width, height: r.height }
+}
+
 /** 캡처 대상 하나를 검증·정규화한다. 계약을 벗어나면 SidecarProtocolError. */
 function parseTarget(raw: unknown, where: string): CaptureTarget {
   if (typeof raw !== 'object' || raw === null)
@@ -166,13 +179,19 @@ function parseTarget(raw: unknown, where: string): CaptureTarget {
   if (typeof t.title !== 'string') throw new SidecarProtocolError(`${where}: target.title 누락`)
   if (!isFiniteNumber(t.width) || !isFiniteNumber(t.height))
     throw new SidecarProtocolError(`${where}: target 크기 누락`)
-  return {
+  // v4: 선택 오버레이용 창 프레임(전역 좌표)과 Area crop 사각형. 둘 다 선택적이다.
+  const frame = parseOptionalRect(t.frame, `${where}: target.frame`)
+  const sourceRect = parseOptionalRect(t.sourceRect, `${where}: target.sourceRect`)
+  const target: CaptureTarget = {
     kind: t.kind as CaptureTargetKind,
     id: t.id,
     title: t.title,
     width: t.width,
     height: t.height
   }
+  if (frame) target.frame = frame
+  if (sourceRect) target.sourceRect = sourceRect
+  return target
 }
 
 /**
