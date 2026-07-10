@@ -8,6 +8,7 @@ import { ErrorView } from './views/ErrorView'
 import { WelcomeView } from './views/WelcomeView'
 import { PlaceholderView } from './views/PlaceholderView'
 import { ToolbarView } from './views/ToolbarView'
+import { RecPillView } from './views/RecPillView'
 import { WindowPickerOverlayView } from './views/WindowPickerOverlayView'
 import { AreaOverlayView } from './views/AreaOverlayView'
 import { DisplayOverlayView } from './views/DisplayOverlayView'
@@ -39,6 +40,11 @@ export default function App(): JSX.Element {
   // 판정·자동/수동 소환·완료 후 창 닫힘은 모두 main이 맡는다.
   if (role === 'welcome') {
     return <WelcomeView />
+  }
+
+  // 플로팅 REC 알약(#74) — 녹화 중에만 뜨는 별도 표면. 자체 pill 크롬을 그린다.
+  if (role === 'rec-pill') {
+    return <RecPillView />
   }
 
   // 선택 오버레이 창 — 컨텍스트의 kind 로 Display(#71)/Window picker(#73)/Area(#72)를

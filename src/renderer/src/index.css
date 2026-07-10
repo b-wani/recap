@@ -1258,6 +1258,29 @@ body {
   color: var(--text-3);
 }
 
+/* ── 플로팅 REC 알약 (#74) — 녹화 중 표시·정지 표면, 마스코트 없음 ──────────── */
+.rec-pill {
+  -webkit-app-region: drag;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  height: calc(100vh - var(--space-4));
+  margin: var(--space-2);
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.rec-pill-stop {
+  -webkit-app-region: no-drag;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+}
+
 /* ── Welcome 창 셸 (#80) — 마스코트 히어로 + 챕터 내비 + 본문 패널 + 하단 바 ─── */
 .welcome {
   display: flex;

@@ -22,6 +22,7 @@ import { Recorder } from './recorder'
 import { AppTray } from './tray'
 import { WindowRegistry, type WindowEntry } from './window-registry'
 import { matchDisplayTargets } from './display-overlay'
+import { isSubscribedRole } from './capture-broadcast'
 import {
   listRecordings,
   loadRecording,
@@ -127,9 +128,11 @@ const recorder = new Recorder(sidecarPath())
  */
 function applyState(state: RecordingState): void {
   currentState = state
-  // 지금은 shell 창이 idle/recording/preview/error 를 모두 그리므로 shell 에 보낸다.
-  // #74 에서 캡처 상태 구독 role(툴바·오버레이·트레이·REC 알약)로 타깃 전송을 일반화한다.
-  shellWindow()?.webContents.send(IpcChannel.State, state)
+  // 레지스트리 기반 구독 role 타깃 전송(#74) — 캡처 상태 구독 role(shell·툴바·오버레이·
+  // REC 알약)에만 보낸다. 에디터/라이브러리/Welcome 은 캡처 상태와 무관해 받지 않는다.
+  for (const entry of registry.all()) {
+    if (isSubscribedRole(entry.role)) entry.window.webContents.send(IpcChannel.State, state)
+  }
   appTray?.update(state)
   syncWindowForState(state)
 }
@@ -143,11 +146,15 @@ function syncWindowForState(state: RecordingState): void {
   switch (state.status) {
     case 'recording':
       shellWindow()?.hide()
+      showRecPill()
       break
     case 'preview':
     case 'error':
+      destroyRecPill()
       showLauncher()
       break
+    default:
+      destroyRecPill()
   }
 }
 
@@ -543,6 +550,55 @@ function createToolbarWindow(): WindowEntry<BrowserWindow> {
 /** 열려 있는 캡처 툴바 창을 모두 파괴한다(arming 종료 — 취소/녹화 시작 공통). */
 function destroyToolbars(): void {
   for (const entry of registry.allByRole('toolbar')) entry.window.destroy()
+}
+
+/** 플로팅 REC 알약 창의 크기(#74). 점 + 타임코드 + 정지 버튼을 담는 작은 pill. */
+const REC_PILL_SIZE = { width: 220, height: 56 }
+
+/**
+ * 플로팅 REC 알약 창(녹화 중 표시·정지 표면, #74). 캡처 툴바가 녹화 시작 시 이미
+ * 닫혀 있어 자리가 겹치지 않는다 — 주 디스플레이 작업영역 상단 중앙에 띄운다.
+ * 캡처 툴바·선택 오버레이와 같은 이유로 always-on-top + content-protected 다
+ * (화면 녹화 자체에는 찍히지 않아야 한다).
+ */
+function createRecPillWindow(): WindowEntry<BrowserWindow> {
+  const { workArea } = screen.getPrimaryDisplay()
+  const x = Math.round(workArea.x + (workArea.width - REC_PILL_SIZE.width) / 2)
+  const y = Math.round(workArea.y + 24)
+  const entry = createRoleWindow('rec-pill', {
+    width: REC_PILL_SIZE.width,
+    height: REC_PILL_SIZE.height,
+    x,
+    y,
+    frame: false,
+    transparent: true,
+    hasShadow: false,
+    resizable: false,
+    movable: false,
+    focusable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    show: false
+  })
+  const win = entry.window
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setContentProtection(true)
+  if (process.platform === 'darwin') {
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  }
+  win.once('ready-to-show', () => win.show())
+  return entry
+}
+
+/** REC 알약을 보장한다(없으면 생성) — 녹화 진입 시 `syncWindowForState` 가 호출한다. */
+function showRecPill(): void {
+  if (registry.firstByRole('rec-pill')) return
+  createRecPillWindow()
+}
+
+/** 열려 있는 REC 알약을 모두 파괴한다(녹화 종료·취소 공통). */
+function destroyRecPill(): void {
+  for (const entry of registry.allByRole('rec-pill')) entry.window.destroy()
 }
 
 /**

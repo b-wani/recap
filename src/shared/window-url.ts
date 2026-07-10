@@ -7,14 +7,23 @@
 /**
  * 창의 역할. `shell` 은 전환기의 현행 통합 창(온보딩·idle·녹화·미리보기를 한 창에서
  * 스왑) — 이후 티켓에서 editor(#75)·library(#78)·welcome(#80) 로 쪼개져 사라진다.
- * toolbar·overlay 는 캡처 티켓(#70~)이 채운다.
+ * toolbar·overlay 는 캡처 티켓(#70~)이 채운다. `rec-pill` 은 녹화 중에만 뜨는
+ * 플로팅 REC 알약(경과 타임코드 + 정지, #74).
  */
-export type WindowRole = 'shell' | 'toolbar' | 'overlay' | 'editor' | 'library' | 'welcome'
+export type WindowRole =
+  | 'shell'
+  | 'toolbar'
+  | 'overlay'
+  | 'rec-pill'
+  | 'editor'
+  | 'library'
+  | 'welcome'
 
 const ROLES: readonly WindowRole[] = [
   'shell',
   'toolbar',
   'overlay',
+  'rec-pill',
   'editor',
   'library',
   'welcome'
