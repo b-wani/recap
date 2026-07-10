@@ -35,8 +35,6 @@ export const IpcChannel = {
   CaptureStart: 'capture:start',
   /** arming 취소 — 캡처 툴바·오버레이를 닫고 idle 로 되돌린다(Esc/✕). */
   CaptureCancel: 'capture:cancel',
-  /** 온보딩 완료 여부를 조회한다(앱 시작 시 렌더러가 온보딩/기존 화면을 분기). */
-  OnboardingStatus: 'onboarding:status',
   /** 온보딩 완료를 로컬(userData)에 저장한다(마지막 단계 완료 액션). */
   OnboardingComplete: 'onboarding:complete',
   /** 화면 녹화·손쉬운 사용 권한의 granted 여부를 조회한다(온보딩 권한 단계 폴링). */

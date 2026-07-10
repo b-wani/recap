@@ -5,7 +5,7 @@ import { IdleView } from './views/IdleView'
 import { RecordingView } from './views/RecordingView'
 import { PreviewView } from './views/PreviewView'
 import { ErrorView } from './views/ErrorView'
-import { OnboardingView } from './views/OnboardingView'
+import { WelcomeView } from './views/WelcomeView'
 import { PlaceholderView } from './views/PlaceholderView'
 import { ToolbarView } from './views/ToolbarView'
 
@@ -21,21 +21,21 @@ export default function App(): JSX.Element {
     if (params) void window.recap.getWindowContext(params.id).then(setContext)
   }, [params])
 
-  // 온보딩 완료 여부. null은 조회 전(로딩) — 확정되기 전엔 아무 화면도 그리지 않는다.
-  // 온보딩은 녹화 상태 머신(RecordingState)과 직교라 여기 최상단에서 감싼다.
-  const [onboarded, setOnboarded] = useState<boolean | null>(null)
   const [state, setState] = useState<RecordingState>({ status: 'idle' })
 
   useEffect(() => window.recap.onStateChange(setState), [])
-  useEffect(() => {
-    void window.recap.onboardingStatus().then(setOnboarded)
-  }, [])
 
   const goIdle = (): void => setState({ status: 'idle' })
 
   // 캡처 툴바 창(#70) — 프레임 없는 플로팅 pill 이라 .app 크롬 없이 자체 루트로 그린다.
   if (role === 'toolbar') {
     return <ToolbarView />
+  }
+
+  // Welcome(온보딩) 창(#80) — 독립 창으로 분리되어 셸을 직접 그린다. 완료 플래그
+  // 판정·자동/수동 소환·완료 후 창 닫힘은 모두 main이 맡는다.
+  if (role === 'welcome') {
+    return <WelcomeView />
   }
 
   // 그 밖의 아직 전용 화면이 없는 role 창은 자리표시자로 골격이 닿았음을 보인다.
@@ -50,17 +50,10 @@ export default function App(): JSX.Element {
   return (
     <main className="app">
       <h1 className="title">Recap</h1>
-      {onboarded === false ? (
-        // 완료 시 onboarded=true가 되고, state는 기본값 idle이라 그 자리에서 idle 화면으로 전환된다.
-        <OnboardingView onComplete={() => setOnboarded(true)} />
-      ) : onboarded === true ? (
-        <>
-          {state.status === 'idle' && <IdleView />}
-          {state.status === 'recording' && <RecordingView state={state} />}
-          {state.status === 'preview' && <PreviewView state={state} onExit={goIdle} />}
-          {state.status === 'error' && <ErrorView state={state} onReset={goIdle} />}
-        </>
-      ) : null}
+      {state.status === 'idle' && <IdleView />}
+      {state.status === 'recording' && <RecordingView state={state} />}
+      {state.status === 'preview' && <PreviewView state={state} onExit={goIdle} />}
+      {state.status === 'error' && <ErrorView state={state} onReset={goIdle} />}
     </main>
   )
 }

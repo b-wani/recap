@@ -968,44 +968,7 @@ body {
   max-width: 460px;
 }
 
-/* ── 온보딩 ───────────────────────────────────────── */
-.onboarding {
-  flex: 1;
-  justify-content: center;
-}
-
-.onboarding-card {
-  width: 100%;
-  max-width: 420px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-5);
-  padding: var(--space-6);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-l);
-  background: var(--surface);
-}
-
-.onboarding-progress {
-  margin: 0;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--text-3);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-}
-
-.onboarding-step-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--text-1);
-  text-align: center;
-}
-
+/* ── 온보딩 콘텐츠(#48) — Welcome 창 본문 패널에 그대로 마운트된다(#80) ───── */
 .onboarding-body {
   width: 100%;
   display: flex;
@@ -1089,34 +1052,6 @@ body {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-1);
-}
-
-.onboarding-dots {
-  display: flex;
-  gap: var(--space-2);
-}
-
-.onboarding-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--surface-3);
-  transition: background 0.12s ease;
-}
-
-.onboarding-dot.is-active {
-  background: var(--grass);
-}
-
-.onboarding-nav {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.onboarding-nav .btn {
-  flex: 1;
 }
 
 /* ── 온보딩 권한 단계 ─────────────────────────────── */
@@ -1330,4 +1265,160 @@ body {
 .countdown-hint {
   font-size: var(--text-xs);
   color: var(--text-3);
+}
+
+/* ── Welcome 창 셸 (#80) — 마스코트 히어로 + 챕터 내비 + 본문 패널 + 하단 바 ─── */
+.welcome {
+  display: flex;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text-1);
+}
+
+.welcome-rail {
+  width: 272px;
+  flex: 0 0 272px;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-5) var(--space-4);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow: auto;
+}
+
+.welcome-hero {
+  text-align: center;
+  padding: var(--space-1) var(--space-1) var(--space-4);
+}
+
+.welcome-mascot {
+  width: 104px;
+  height: 104px;
+  margin: 0 auto var(--space-3);
+  display: block;
+}
+
+.welcome-hero h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.welcome-hero p {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.welcome-progress {
+  margin: var(--space-3) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.welcome-chapters {
+  list-style: none;
+  margin: var(--space-4) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+}
+
+.welcome-chapter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-m);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.welcome-chapter-num {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.welcome-chapter.is-done {
+  color: var(--text-2);
+}
+
+.welcome-chapter.is-done .welcome-chapter-num {
+  background: transparent;
+  color: var(--grass);
+  border: 1px solid var(--border-strong);
+}
+
+.welcome-chapter.is-active {
+  background: var(--surface-3);
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.welcome-chapter.is-active .welcome-chapter-num {
+  background: var(--grass);
+  color: var(--grass-ink);
+}
+
+.welcome-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.welcome-content {
+  flex: 1;
+  padding: var(--space-6) var(--space-6) var(--space-4);
+  overflow: auto;
+}
+
+.welcome-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.welcome-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.welcome-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  transition: width 0.12s ease, background 0.12s ease;
+}
+
+.welcome-dot.is-active {
+  width: 18px;
+  background: var(--grass);
+}
+
+.welcome-btns {
+  display: flex;
+  gap: var(--space-3);
 }

@@ -14,6 +14,8 @@ export interface TrayCallbacks {
   onToggleRecord: () => void
   /** 런처(idle 뷰) 창을 표시·포커스한다. */
   onShowLauncher: () => void
+  /** Welcome(온보딩) 창을 다시 연다 — 완료 플래그와 무관하게 항상 허용(#80). */
+  onShowWelcome: () => void
   /** 저장된 녹화를 다시 연다. */
   onOpenRecording: (folder: string) => void
   /** 최근 녹화 목록을 최신순으로 가져온다(컨텍스트 메뉴용). */
@@ -115,6 +117,7 @@ export class AppTray {
     return Menu.buildFromTemplate([
       { label: '녹화 시작 (⌥⌘R)', click: () => this.cb.onToggleRecord() },
       { label: '런처 열기', click: () => this.cb.onShowLauncher() },
+      { label: 'Welcome 다시 보기', click: () => this.cb.onShowWelcome() },
       { type: 'separator' },
       { label: '최근 녹화', submenu: recentItems },
       { type: 'separator' },

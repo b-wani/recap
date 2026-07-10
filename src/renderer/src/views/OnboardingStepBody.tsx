@@ -104,12 +104,12 @@ export function OnboardingStepBody({ id }: { id: OnboardingStepId }): JSX.Elemen
       return (
         <div className="onboarding-body">
           <p className="onboarding-lead">
-            전역 단축키 <kbd className="onboarding-kbd">⌥⌘R</kbd>로 창을 열지 않고 녹화를
-            시작하거나 멈출 수 있어요. 어떤 앱을 쓰고 있든 동작합니다.
+            전역 단축키 <kbd className="onboarding-kbd">⌥⌘R</kbd>로 캡처 툴바를 불러와요.
+            녹화 중에 누르면 바로 정지합니다. 어떤 앱을 쓰고 있든 동작해요.
           </p>
           <p className="onboarding-note">
-            Recap은 메뉴바에 상주해요. 창을 닫아도 종료되지 않고, 메뉴바 아이콘에서 다시 열 수
-            있습니다.
+            Recap은 메뉴바에 상주해요. 창을 닫아도 종료되지 않고, 메뉴바 아이콘 →
+            “Welcome 다시 보기”로 이 안내를 언제든 다시 열 수 있어요.
           </p>
         </div>
       )

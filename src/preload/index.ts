@@ -62,8 +62,6 @@ const api = {
     ipcRenderer.invoke(IpcChannel.CaptureStart, mode),
   /** arming 취소 — 툴바를 닫고 idle 로. */
   captureCancel: (): Promise<void> => ipcRenderer.invoke(IpcChannel.CaptureCancel),
-  /** 온보딩 완료 여부를 조회한다. 앱 시작 시 온보딩/기존 화면 분기에 쓴다. */
-  onboardingStatus: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.OnboardingStatus),
   /** 온보딩 완료를 로컬에 저장한다. 마지막 단계 완료 액션에서 호출한다. */
   completeOnboarding: (): Promise<void> => ipcRenderer.invoke(IpcChannel.OnboardingComplete),
   /** 화면 녹화·손쉬운 사용 권한의 granted 여부를 조회한다(권한 단계 250ms 폴링). */
