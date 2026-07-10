@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { OverlayContext, RecordingState } from '../../shared/ipc'
+import type { EditorContext, OverlayContext, RecordingState } from '../../shared/ipc'
 import { parseWindowHash } from '../../shared/window-url'
 import { IdleView } from './views/IdleView'
 import { RecordingView } from './views/RecordingView'
-import { PreviewView } from './views/PreviewView'
+import { EditorView } from './views/EditorView'
 import { ErrorView } from './views/ErrorView'
 import { WelcomeView } from './views/WelcomeView'
 import { PlaceholderView } from './views/PlaceholderView'
@@ -57,6 +57,14 @@ export default function App(): JSX.Element {
     return <></>
   }
 
+  // 에디터 창(#75) — 독립 문서창, 컨텍스트(연 녹화물 + recipe 편집분)를 창 로컬로 소유하고
+  // 전역 캡처 상태는 구독하지 않는다. 컨텍스트 도착 전엔 아무것도 안 그린다.
+  if (role === 'editor') {
+    const editorContext = context as EditorContext | null
+    if (!editorContext) return <></>
+    return <EditorView context={editorContext} />
+  }
+
   // 그 밖의 아직 전용 화면이 없는 role 창은 자리표시자로 골격이 닿았음을 보인다.
   if (role !== 'shell') {
     return (
@@ -71,7 +79,6 @@ export default function App(): JSX.Element {
       <h1 className="title">Recap</h1>
       {state.status === 'idle' && <IdleView />}
       {state.status === 'recording' && <RecordingView state={state} />}
-      {state.status === 'preview' && <PreviewView state={state} onExit={goIdle} />}
       {state.status === 'error' && <ErrorView state={state} onReset={goIdle} />}
     </main>
   )

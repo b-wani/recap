@@ -80,7 +80,7 @@ export function IdleView(): JSX.Element {
           <ul className="recent-list">
             {recent.map((r) => (
               <li key={r.folder}>
-                <button className="recent-item" onClick={() => window.recap.openRecording(r.folder)}>
+                <button className="recent-item" onClick={() => window.recap.openEditor(r.folder)}>
                   <span className="recent-thumb" aria-hidden>
                     {r.thumbnailUrl ? (
                       <img src={r.thumbnailUrl} alt="" />

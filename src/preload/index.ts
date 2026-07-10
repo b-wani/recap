@@ -34,9 +34,9 @@ const api = {
   /** 미리보기 첫 프레임 썸네일(JPEG 바이트)을 녹화 폴더에 캐시로 저장한다. */
   saveThumbnail: (folder: string, bytes: ArrayBuffer): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.SaveThumbnail, folder, bytes),
-  /** 저장된 녹화를 다시 연다. 결과는 onStateChange로 미리보기 상태가 온다. */
-  openRecording: (folder: string): Promise<void> =>
-    ipcRenderer.invoke(IpcChannel.OpenRecording, folder),
+  /** 저장된 녹화를 독립 에디터 창으로 연다(다중 인스턴스, #75). */
+  openEditor: (folder: string): Promise<void> =>
+    ipcRenderer.invoke(IpcChannel.EditorOpen, folder),
   /** 익스포트된 바이트를 포맷에 맞춰 녹화 폴더에 저장하고 경로·용량을 돌려받는다. */
   saveExport: (
     bytes: ArrayBuffer,
@@ -49,9 +49,6 @@ const api = {
   /** 저장된 파일 경로를 클립보드에 복사한다. */
   copyExportPath: (path: string): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.ExportCopyPath, path),
-  /** 편집기 진입(on=true) 시 창을 넓히고, 이탈(on=false) 시 원래 크기로 되돌린다. */
-  setEditorMode: (on: boolean): Promise<void> =>
-    ipcRenderer.invoke(IpcChannel.SetEditorMode, on),
   /** 지정 role 의 창을 연다(싱글톤이면 기존 창 focus). 새/기존 창의 windowId 를 돌려받는다. */
   openWindow: (role: WindowRole, context?: unknown): Promise<number> =>
     ipcRenderer.invoke(IpcChannel.WindowOpen, role, context),
