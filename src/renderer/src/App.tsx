@@ -4,6 +4,7 @@ import { parseWindowHash } from '../../shared/window-url'
 import { IdleView } from './views/IdleView'
 import { RecordingView } from './views/RecordingView'
 import { EditorView } from './views/EditorView'
+import { LibraryView } from './views/LibraryView'
 import { ErrorView } from './views/ErrorView'
 import { WelcomeView } from './views/WelcomeView'
 import { PlaceholderView } from './views/PlaceholderView'
@@ -63,6 +64,12 @@ export default function App(): JSX.Element {
     const editorContext = context as EditorContext | null
     if (!editorContext) return <></>
     return <EditorView context={editorContext} />
+  }
+
+  // 라이브러리 창(#78) — 녹화 전체를 브라우즈하는 독립 창. 캡처 상태와 무관하고
+  // 컨텍스트도 쓰지 않는다(마운트 시 listRecordings로 직접 로드).
+  if (role === 'library') {
+    return <LibraryView />
   }
 
   // 그 밖의 아직 전용 화면이 없는 role 창은 자리표시자로 골격이 닿았음을 보인다.

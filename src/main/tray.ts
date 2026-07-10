@@ -16,6 +16,8 @@ export interface TrayCallbacks {
   onShowLauncher: () => void
   /** Welcome(온보딩) 창을 다시 연다 — 완료 플래그와 무관하게 항상 허용(#80). */
   onShowWelcome: () => void
+  /** 라이브러리 창을 열거나 포커스한다(#78) — 전체 브라우즈의 정식 진입점. */
+  onShowLibrary: () => void
   /** 저장된 녹화를 다시 연다. */
   onOpenRecording: (folder: string) => void
   /** 최근 녹화 목록을 최신순으로 가져온다(컨텍스트 메뉴용). */
@@ -119,6 +121,7 @@ export class AppTray {
       { label: '런처 열기', click: () => this.cb.onShowLauncher() },
       { label: 'Welcome 다시 보기', click: () => this.cb.onShowWelcome() },
       { type: 'separator' },
+      { label: '라이브러리 열기', click: () => this.cb.onShowLibrary() },
       { label: '최근 녹화', submenu: recentItems },
       { type: 'separator' },
       { label: '종료', click: () => this.cb.onQuit() }

@@ -542,6 +542,49 @@ function summonWelcome(): void {
   createWelcomeWindow()
 }
 
+/** 라이브러리 창의 기본 크기(#78) — 목록·녹화 등 기본 화면과 동일한 규모로 시작한다. */
+const LIBRARY_WINDOW_SIZE = DEFAULT_WINDOW_SIZE
+
+/**
+ * 라이브러리 창을 만든다(#78). 싱글톤 — 닫아도(X) destroy 하지 않고 hide 해 빠른
+ * 재소환(트레이 '라이브러리 열기'·`window:open`)을 지원한다. 종료 절차 중에는(`isQuitting`)
+ * 실제로 닫혀야 하므로 shell 창과 동일한 가드를 둔다. 콘텐츠(그리드)는 렌더러가
+ * `recordings:list` IPC로 직접 로드해, 창 컨텍스트 페이로드는 필요 없다.
+ */
+function createLibraryWindow(): WindowEntry<BrowserWindow> {
+  const entry = createRoleWindow('library', {
+    width: LIBRARY_WINDOW_SIZE.width,
+    height: LIBRARY_WINDOW_SIZE.height,
+    minWidth: 720,
+    minHeight: 480,
+    show: false,
+    title: '라이브러리',
+    icon: brandIconPath()
+  })
+  const win = entry.window
+  win.on('ready-to-show', () => win.show())
+  win.on('close', (e) => {
+    if (isQuitting) return
+    e.preventDefault()
+    win.hide()
+  })
+  return entry
+}
+
+/**
+ * 라이브러리 창을 소환한다 — 트레이 '라이브러리 열기'와 `window:open`이 공유하는 진입점.
+ * 이미 떠 있으면(hide 상태 포함) 새로 만들지 않고 표시·포커스한다.
+ */
+function summonLibrary(): void {
+  const existing = registry.firstByRole('library')
+  if (existing) {
+    existing.window.show()
+    existing.window.focus()
+    return
+  }
+  createLibraryWindow()
+}
+
 /** 캡처 툴바 창의 크기(플로팅 pill). 렌더러가 이 안에 알약 크롬을 그린다. */
 const TOOLBAR_SIZE = { width: 520, height: 96 }
 
@@ -966,7 +1009,9 @@ function registerIpc(): void {
         ? createShellWindow()
         : role === 'welcome'
           ? createWelcomeWindow()
-          : createRoleWindow(role, defaultWindowOptions(), context)
+          : role === 'library'
+            ? createLibraryWindow()
+            : createRoleWindow(role, defaultWindowOptions(), context)
     return entry.id
   })
 
@@ -1059,6 +1104,7 @@ function setupTray(): void {
     onToggleRecord: () => void toggleRecord(),
     onShowLauncher: () => showLauncher(),
     onShowWelcome: () => summonWelcome(),
+    onShowLibrary: () => summonLibrary(),
     onOpenRecording: (folder) => {
       void openEditorForFolder(folder).catch((err) => console.error('[tray] 녹화 열기 실패', err))
     },
