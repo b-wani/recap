@@ -17,6 +17,8 @@ import { homedir } from 'node:os'
 import type { CaptureTarget, EventTrack } from '../shared/event-track'
 import type { RenderRecipe } from '../shared/recipe'
 import { serializeRecipe, parseRecipe } from '../shared/recipe.persist'
+import type { StylePreset } from '../shared/style-preset'
+import { serializePresets, parsePresets } from '../shared/style-preset.persist'
 import type { RecordingSummary } from '../shared/ipc'
 
 const MANIFEST_FILE = 'recording.json'
@@ -25,6 +27,8 @@ const RECIPE_FILE = 'recipe.json'
 const THUMBNAIL_FILE = 'thumbnail.jpg'
 /** 온보딩 완료 플래그 파일 이름. userData 폴더에 하나만 둔다. */
 const ONBOARDING_FILE = 'onboarding.json'
+/** 스타일 프리셋 목록 파일 이름. userData 폴더에 하나만 둔다(녹화 폴더와 무관한 앱 전역 저장소, #77). */
+const STYLE_PRESETS_FILE = 'style-presets.json'
 
 /** 녹화 폴더가 담는 모든 것의 절대 경로 색인. 세 산출물을 하나로 묶는다. */
 export interface RecordingManifest {
@@ -182,6 +186,35 @@ export async function isOnboardingComplete(userDataDir: string): Promise<boolean
   } catch {
     return false
   }
+}
+
+/**
+ * 앱 전역 스타일 프리셋 목록을 userData에서 읽는다(녹화별 저장소와 무관, #77).
+ * 파일이 없거나 손상되면 빈 목록(프리셋 목록이 아예 막히지 않도록).
+ */
+export async function listStylePresets(userDataDir: string): Promise<StylePreset[]> {
+  try {
+    return parsePresets(await readFile(join(userDataDir, STYLE_PRESETS_FILE), 'utf8'))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 스타일 프리셋을 userData에 저장한다. 같은 id가 이미 있으면 덮어쓰고, 없으면 추가한다
+ * (이름 바꾸기 등 향후 갱신에도 재사용 가능하도록 upsert로 둔다).
+ */
+export async function saveStylePreset(userDataDir: string, preset: StylePreset): Promise<void> {
+  const existing = await listStylePresets(userDataDir)
+  const next = [...existing.filter((p) => p.id !== preset.id), preset]
+  await writeFile(join(userDataDir, STYLE_PRESETS_FILE), serializePresets(next), 'utf8')
+}
+
+/** 지정 id의 스타일 프리셋을 userData에서 지운다. 없는 id면 조용히 통과한다. */
+export async function deleteStylePreset(userDataDir: string, id: string): Promise<void> {
+  const existing = await listStylePresets(userDataDir)
+  const next = existing.filter((p) => p.id !== id)
+  await writeFile(join(userDataDir, STYLE_PRESETS_FILE), serializePresets(next), 'utf8')
 }
 
 export { MANIFEST_VERSION }

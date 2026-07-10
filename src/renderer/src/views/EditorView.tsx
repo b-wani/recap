@@ -7,6 +7,7 @@ import {
   type RenderRecipe
 } from '../../../shared/recipe'
 import { deleteZoomSegment, trimmedDurationMs } from '../../../shared/recipe.edit'
+import { applyStylePreset, type StylePreset } from '../../../shared/style-preset'
 import { drawComposition } from '../compose'
 import { GITHUB_PRESET, exceedsSizeLimit, type ExportFormat } from '../../../shared/export-preset'
 import { renderRecipeToMp4, renderRecipeToGif } from '../export'
@@ -55,6 +56,13 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
   // 상단 바 익스포트 버튼 아래 팝오버 열림 상태(D3: 익스포트 동선을 상단 바 primary로).
   const [exportOpen, setExportOpen] = useState(false)
   const exportBoxRef = useRef<HTMLDivElement>(null)
+  // 앱 전역 스타일 프리셋 목록(#77) — 배경/커서 스타일 번들. 줌/트림 등 녹화별 편집과 무관.
+  const [presets, setPresets] = useState<StylePreset[]>([])
+
+  // 창 부팅 시 저장된 스타일 프리셋 목록을 한 번 불러온다.
+  useEffect(() => {
+    void window.recap.listPresets().then(setPresets)
+  }, [])
 
   // 팝오버 밖 클릭 시 닫는다(인코딩 중에는 진행 상황을 계속 보여주도록 열어 둔다).
   useEffect(() => {
@@ -226,6 +234,21 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     setSelectedId(null)
   }
 
+  // 현재 스타일(배경/커서)을 이름 붙여 앱 전역 프리셋으로 저장한다(#77).
+  const onSavePreset = async (name: string): Promise<void> => {
+    if (!recipe) return
+    const saved = await window.recap.savePreset(name, recipe)
+    setPresets((prev) => [...prev, saved])
+  }
+  // 저장된 프리셋의 스타일을 현재 레시피에 반영한다(줌/트림 등은 불변, 순수 함수 적용).
+  const onApplyPreset = (preset: StylePreset): void => {
+    update((r) => applyStylePreset(r, preset))
+  }
+  const onDeletePreset = async (id: string): Promise<void> => {
+    await window.recap.deletePreset(id)
+    setPresets((prev) => prev.filter((p) => p.id !== id))
+  }
+
   // 트림 반영 길이 (메타 바·재생 컨트롤에서 공유).
   const lengthMs = recipe ? trimmedDurationMs(recipe) : state.durationMs
 
@@ -292,6 +315,10 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
             onDeleteSegment={onDeleteSegment}
             eventCount={state.eventCount}
             folder={state.folder}
+            presets={presets}
+            onSavePreset={onSavePreset}
+            onApplyPreset={onApplyPreset}
+            onDeletePreset={onDeletePreset}
           />
         )}
 
