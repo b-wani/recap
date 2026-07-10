@@ -10,6 +10,7 @@ import { PlaceholderView } from './views/PlaceholderView'
 import { ToolbarView } from './views/ToolbarView'
 import { WindowPickerOverlayView } from './views/WindowPickerOverlayView'
 import { AreaOverlayView } from './views/AreaOverlayView'
+import { DisplayOverlayView } from './views/DisplayOverlayView'
 
 export default function App(): JSX.Element {
   // 이 창의 정체(id·role) — main 이 URL 해시로 실어 준다(#69). 없으면(구 진입 경로 등)
@@ -40,12 +41,13 @@ export default function App(): JSX.Element {
     return <WelcomeView />
   }
 
-  // 선택 오버레이 창 — 컨텍스트의 kind 로 Window picker(#73)/Area(#72)를 분기한다.
-  // 화면 전체를 덮는 딤 창이라 .app 크롬 없이 그린다. 컨텍스트 도착 전엔 아무것도 안 그린다.
+  // 선택 오버레이 창 — 컨텍스트의 kind 로 Display(#71)/Window picker(#73)/Area(#72)를
+  // 분기한다. 화면 전체를 덮는 딤 창이라 .app 크롬 없이 그린다. 컨텍스트 도착 전엔 아무것도 안 그린다.
   if (role === 'overlay' && params) {
-    const kind = (context as OverlayContext | null)?.kind
-    if (kind === 'area') return <AreaOverlayView />
-    if (kind === 'window-picker') return <WindowPickerOverlayView windowId={params.id} />
+    const overlay = context as OverlayContext | null
+    if (overlay?.kind === 'display') return <DisplayOverlayView context={overlay} />
+    if (overlay?.kind === 'area') return <AreaOverlayView />
+    if (overlay?.kind === 'window-picker') return <WindowPickerOverlayView windowId={params.id} />
     return <></>
   }
 

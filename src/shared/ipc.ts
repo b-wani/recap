@@ -31,12 +31,17 @@ export const IpcChannel = {
   WindowOpen: 'window:open',
   /** 창 생성 시 main 이 넣어 둔 초기 컨텍스트를 windowId 로 당겨온다(렌더러 부팅 pull). */
   WindowGetContext: 'window:get-context',
-  /** 캡처 툴바에서 고른 모드로 녹화를 시작한다(Display 는 주 디스플레이). arming→recording. */
+  /** Display 선택 오버레이가 고른 대상(targetId)으로 녹화를 시작한다(#71). arming→recording. */
   CaptureStart: 'capture:start',
   /** arming 취소 — 캡처 툴바·오버레이를 닫고 idle 로 되돌린다(Esc/✕). */
   CaptureCancel: 'capture:cancel',
-  /** 캡처 모드 전환을 알린다 — Window/Area 는 해당 선택 오버레이를 띄우고, 그 외는 닫는다(#73/#72). */
+  /** 캡처 모드 전환을 알린다 — 모드별 선택 오버레이를 띄우고, 다른 종류는 닫는다(#71/#73/#72). */
   CaptureSetMode: 'capture:set-mode',
+  /**
+   * 3-2-1 카운트다운 설정을 main 에 반영한다(#71). 선택 오버레이는 툴바와 다른 창(프로세스)이라
+   * 로컬 React state 를 공유할 수 없어, 오버레이 생성 시 컨텍스트로 스냅샷을 실어 보낸다.
+   */
+  CaptureSetCountdown: 'capture:set-countdown',
   /** Window 선택 오버레이의 호버 상태 변화 — main 이 오버레이 창의 클릭스루 여부를 토글한다(#73). */
   OverlayHover: 'overlay:hover',
   /** Window 선택 오버레이에서 창을 클릭해 확정 — 그 대상으로 녹화를 시작한다(#73). */
@@ -100,8 +105,24 @@ export interface AreaOverlayContext {
   kind: 'area'
 }
 
+/**
+ * Display 선택 오버레이 창의 초기 컨텍스트(#71). 디스플레이당 창 하나 — 각 창이 자기
+ * 디스플레이의 대상 id 와 배지용 논리 해상도를 받는다. FPS 는 사이드카 고정값(60)이라
+ * 싣지 않는다. 카운트다운 설정은 툴바 로컬 state 의 생성 시점 스냅샷이다.
+ */
+export interface DisplayOverlayContext {
+  kind: 'display'
+  /** 사이드카에 넘길 대상 id(`display:<번호>`) — Start 확정 시 그대로 녹화를 시작한다. */
+  targetId: string
+  /** 배지에 보일 논리 해상도(포인트). */
+  width: number
+  height: number
+  /** 툴바 설정 팝오버의 3-2-1 카운트다운 토글 스냅샷. */
+  countdownEnabled: boolean
+}
+
 /** role 'overlay' 창의 초기 컨텍스트 — 렌더러가 `kind` 로 어떤 오버레이인지 분기한다. */
-export type OverlayContext = WindowPickerOverlayContext | AreaOverlayContext
+export type OverlayContext = WindowPickerOverlayContext | AreaOverlayContext | DisplayOverlayContext
 
 /** 녹화 워크플로의 상태 머신. 렌더러는 이 상태만 보고 화면을 그린다. */
 export type RecordingState =

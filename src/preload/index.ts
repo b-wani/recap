@@ -58,14 +58,17 @@ const api = {
   /** 이 창의 초기 컨텍스트를 windowId 로 당겨온다(부팅 시 role 별 페이로드 로드). */
   getWindowContext: (id: number): Promise<unknown> =>
     ipcRenderer.invoke(IpcChannel.WindowGetContext, id),
-  /** 캡처 툴바에서 고른 모드로 녹화를 시작한다(Display=주 디스플레이). */
-  captureStart: (mode: CaptureMode): Promise<void> =>
-    ipcRenderer.invoke(IpcChannel.CaptureStart, mode),
-  /** arming 취소 — 툴바를 닫고 idle 로. */
+  /** Display 선택 오버레이가 고른 대상으로 녹화를 시작한다(targetId=CaptureTarget.id, #71). */
+  captureStart: (mode: CaptureMode, targetId?: string): Promise<void> =>
+    ipcRenderer.invoke(IpcChannel.CaptureStart, mode, targetId),
+  /** arming 취소 — 툴바·오버레이를 닫고 idle 로. */
   captureCancel: (): Promise<void> => ipcRenderer.invoke(IpcChannel.CaptureCancel),
-  /** 캡처 모드 전환을 알린다(Window/Area 는 해당 선택 오버레이 생성, 그 외는 파괴). */
+  /** 캡처 모드 전환을 알린다(모드별 선택 오버레이 생성, 다른 종류는 파괴). */
   captureSetMode: (mode: CaptureMode): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.CaptureSetMode, mode),
+  /** 3-2-1 카운트다운 설정을 main 에 반영한다(Display 오버레이가 생성 시점 값을 컨텍스트로 받는다). */
+  captureSetCountdown: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke(IpcChannel.CaptureSetCountdown, enabled),
   /** Area 오버레이에서 확정한 로컬 rect 로 crop 녹화를 시작한다. */
   captureAreaConfirm: (rect: Rect): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.CaptureAreaConfirm, rect),

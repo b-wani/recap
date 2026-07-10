@@ -1205,10 +1205,6 @@ body {
   background: var(--surface-3);
 }
 
-.toolbar-start {
-  white-space: nowrap;
-}
-
 .toolbar-hint {
   color: var(--text-2);
   font-size: var(--text-sm);
@@ -1246,11 +1242,6 @@ body {
 .settings-row .mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-}
-
-.toolbar-countdown {
-  flex-direction: column;
-  gap: var(--space-1);
 }
 
 .countdown-num {
@@ -1552,4 +1543,50 @@ body {
   top: 50%;
   left: 0;
   cursor: ew-resize;
+}
+
+/* ── Display 선택 오버레이 (#71) — 디스플레이 하나를 덮는 딤 + 배지/Start ─────── */
+
+.display-overlay {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 20, 10, 0.55);
+  transition: background-color 120ms ease-out;
+  cursor: pointer;
+}
+
+/* 커서가 올라간 디스플레이(=이 창)만 딤이 살짝 걷힌다. 창 경계가 곧 디스플레이 경계라
+   순수 CSS :hover 로 충분하다(교차 창 커서 추적 불필요). */
+.display-overlay:hover {
+  background: rgba(12, 20, 10, 0.3);
+}
+
+.display-overlay-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.display-overlay-countdown {
+  gap: var(--space-1);
+}
+
+.display-overlay-res {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-md);
+  color: var(--text-1);
+  background: var(--surface-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.display-overlay-start {
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
 }

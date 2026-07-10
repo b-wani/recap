@@ -21,6 +21,7 @@ import { is } from '@electron-toolkit/utils'
 import { Recorder } from './recorder'
 import { AppTray } from './tray'
 import { WindowRegistry, type WindowEntry } from './window-registry'
+import { matchDisplayTargets } from './display-overlay'
 import {
   listRecordings,
   loadRecording,
@@ -39,6 +40,7 @@ import {
   type OverlayContext,
   type WindowPickerOverlayContext,
   type AreaOverlayContext,
+  type DisplayOverlayContext,
   type Rect
 } from '../shared/ipc'
 import { buildWindowHash, type WindowRole } from '../shared/window-url'
@@ -75,6 +77,17 @@ let appTray: AppTray | null = null
 let isQuitting = false
 /** 최신 녹화 상태 — 트레이/단축키 토글이 idle↔recording 을 판단하는 근거. */
 let currentState: RecordingState = { status: 'idle' }
+/**
+ * 3-2-1 카운트다운 토글의 현재 값. 툴바 설정 팝오버가 바꾸고, Display 선택 오버레이(#71)
+ * 생성 시 이 스냅샷을 창 컨텍스트로 실어 보낸다(오버레이가 다른 창이라 로컬 state 공유 불가).
+ */
+let countdownEnabled = true
+/**
+ * 캡처 툴바가 마지막으로 보고한 모드. Display 오버레이 생성은 사이드카 대상 목록 조회를
+ * 기다리는 비동기 경로라, 응답이 오는 사이 사용자가 다른 모드로 옮겼을 수 있어
+ * `createDisplayOverlays` 가 완료 시 이 값으로 여전히 display 인지 재확인한다.
+ */
+let armingMode: CaptureMode = 'display'
 
 /** 목록·녹화 등 기본 화면의 창 크기. */
 const DEFAULT_WINDOW_SIZE = { width: 1180, height: 760 }
@@ -624,6 +637,71 @@ function createAreaOverlayWindow(display: Electron.Display): WindowEntry<Browser
   return entry
 }
 
+/**
+ * Display 선택 오버레이 창 하나(#71). 디스플레이 하나를 정확히 덮는 프레임 없는 투명
+ * 창으로, 딤·해상도 배지·Start 는 렌더러(DisplayOverlayView)가 그린다. 창 경계가 곧
+ * 디스플레이 경계라 hover 하이라이트는 CSS `:hover` 만으로 성립한다(교차 창 커서 추적 불필요).
+ */
+function createDisplayOverlayWindow(
+  bounds: Electron.Rectangle,
+  context: DisplayOverlayContext
+): WindowEntry<BrowserWindow> {
+  const entry = createRoleWindow(
+    'overlay',
+    {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      frame: false,
+      transparent: true,
+      hasShadow: false,
+      resizable: false,
+      movable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      show: false
+    },
+    context
+  )
+  const win = entry.window
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setContentProtection(true)
+  if (process.platform === 'darwin') {
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  }
+  win.once('ready-to-show', () => win.show())
+  return entry
+}
+
+/**
+ * Display 선택 오버레이를 디스플레이마다 하나씩 띄운다(#71). 사이드카 대상 목록으로
+ * Electron 디스플레이와 `display:<id>` 를 짝지어(매칭 로직은 display-overlay.ts) 각 창에
+ * 자기 대상 id·해상도를 실어 보낸다. 목록 조회를 기다리는 동안 모드가 바뀌거나 arming 을
+ * 벗어났을 수 있어, 응답 후 현재 상태를 재확인하고 어긋나면 조용히 포기한다.
+ */
+async function createDisplayOverlays(): Promise<void> {
+  let targets: CaptureTarget[] = []
+  try {
+    targets = await recorder.listTargets()
+  } catch {
+    return // 목록 실패(권한 등)는 오버레이를 안 띄운다 — 권한 안내는 녹화 시작 경로가 맡는다.
+  }
+  if (currentState.status !== 'arming' || armingMode !== 'display') return
+  if (registry.allByRole('overlay').length > 0) return
+
+  const displays = screen.getAllDisplays().map((d) => ({ id: d.id, ...d.bounds }))
+  for (const match of matchDisplayTargets(displays, targets)) {
+    createDisplayOverlayWindow(match.bounds, {
+      kind: 'display',
+      targetId: match.targetId,
+      width: match.width,
+      height: match.height,
+      countdownEnabled
+    })
+  }
+}
+
 /** 열려 있는 선택 오버레이 창을 모두 파괴한다(모드 전환·취소·확정 공통). */
 function destroyOverlays(): void {
   for (const entry of registry.allByRole('overlay')) entry.window.destroy()
@@ -652,19 +730,21 @@ function cancelArming(): void {
 }
 
 /**
- * 캡처 툴바의 모드 전환을 반영한다(#73/#72). Window 는 창 선택 오버레이, Area 는
- * 영역 선택 오버레이(주 디스플레이)를 띄운다 — 같은 종류가 이미 떠 있으면 그대로 두고,
- * 다른 종류/그 외 모드는 열려 있는 오버레이를 닫는다.
+ * 캡처 툴바의 모드 전환을 반영한다(#71/#73/#72). Display 는 디스플레이당 선택 오버레이,
+ * Window 는 창 선택 오버레이, Area 는 영역 선택 오버레이(주 디스플레이)를 띄운다 —
+ * 같은 종류가 이미 떠 있으면 그대로 두고, 다른 종류는 닫고 새로 만든다.
  */
 function setCaptureMode(mode: CaptureMode): void {
-  const wanted: OverlayContext['kind'] | null =
-    mode === 'window' ? 'window-picker' : mode === 'area' ? 'area' : null
+  armingMode = mode
+  const wanted: OverlayContext['kind'] =
+    mode === 'window' ? 'window-picker' : mode === 'area' ? 'area' : 'display'
   const existing = registry.firstByRole('overlay')
   const existingKind = (existing?.context as OverlayContext | null)?.kind ?? null
   if (existingKind === wanted) return
   destroyOverlays()
   if (wanted === 'window-picker') createWindowPickerOverlay()
   else if (wanted === 'area') createAreaOverlayWindow(screen.getPrimaryDisplay())
+  else void createDisplayOverlays()
 }
 
 /** 주 디스플레이(전체 화면) 대상의 id 를 사이드카 목록에서 찾는다. 실패하면 null. */
@@ -680,18 +760,15 @@ async function resolveDisplayTargetId(): Promise<string | null> {
 }
 
 /**
- * 캡처 툴바에서 고른 모드로 녹화를 시작한다. Display 는 주 디스플레이를 잡아 바로 녹화한다.
- * Window 는 선택 오버레이(#73)의 클릭 확정(`overlay:select`)이 이 경로를 타지 않고
- * `startRecording` 을 직접 부르고, Area 는 오버레이의 확정(Start/Enter)이
- * `confirmAreaSelection`(#72)을 거치므로 둘 다 여기 도달하지 않는다(도달해도 무시).
- * 카운트다운은 렌더러가 처리하고 여기선 즉시 시작한다.
+ * Display 선택 오버레이가 고른 대상으로 녹화를 시작한다(#71). 카운트다운은 오버레이
+ * 렌더러가 처리하고 여기선 즉시 시작한다. Window 는 `overlay:select`, Area 는
+ * `capture:area-confirm` 이 별도 경로라 여기 도달하지 않는다 — targetId 없이 오면 무시.
  */
-async function startFromToolbar(mode: CaptureMode): Promise<void> {
-  if (mode !== 'display') return
-  const targetId = await resolveDisplayTargetId()
+function startFromToolbar(mode: CaptureMode, targetId?: string): void {
+  if (mode !== 'display' || !targetId) return
   destroyToolbars()
-  if (targetId) void startRecording(targetId)
-  else applyState({ status: 'error', code: 'no-display', message: PERMISSION_MESSAGE })
+  destroyOverlays()
+  void startRecording(targetId)
 }
 
 /**
@@ -815,11 +892,17 @@ function registerIpc(): void {
   // 창 생성 시 넣어 둔 초기 컨텍스트를 windowId 로 돌려준다(렌더러 부팅 pull). 없으면 null.
   ipcMain.handle(IpcChannel.WindowGetContext, (_e, id: number) => registry.get(id)?.context ?? null)
 
-  // 캡처 툴바: 고른 모드로 녹화 시작(Display=주 디스플레이) · arming 취소.
-  ipcMain.handle(IpcChannel.CaptureStart, (_e, mode: CaptureMode) => startFromToolbar(mode))
+  // 캡처 툴바: 선택 오버레이가 고른 대상으로 녹화 시작(#71) · arming 취소.
+  ipcMain.handle(IpcChannel.CaptureStart, (_e, mode: CaptureMode, targetId?: string) =>
+    startFromToolbar(mode, targetId)
+  )
   ipcMain.handle(IpcChannel.CaptureCancel, () => cancelArming())
-  // 모드 전환 — Window 는 선택 오버레이를 띄우고, 그 외는 닫는다.
+  // 모드 전환 — 모드별 선택 오버레이를 띄우고, 다른 종류는 닫는다.
   ipcMain.handle(IpcChannel.CaptureSetMode, (_e, mode: CaptureMode) => setCaptureMode(mode))
+  // 3-2-1 카운트다운 설정 — 다음에 만들 Display 오버레이 창의 컨텍스트 스냅샷에 반영된다.
+  ipcMain.handle(IpcChannel.CaptureSetCountdown, (_e, enabled: boolean) => {
+    countdownEnabled = enabled
+  })
 
   // Window 선택 오버레이(#73): 호버 상태에 따라 그 창의 클릭스루를 토글하고(hover=true 면
   // 다음 클릭을 오버레이가 직접 받도록 끈다), 클릭 확정은 그 대상으로 바로 녹화를 시작한다.
