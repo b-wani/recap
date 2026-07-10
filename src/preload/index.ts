@@ -104,6 +104,6 @@ const api = {
   deletePreset: (id: string): Promise<void> => ipcRenderer.invoke(IpcChannel.PresetDelete, id)
 }
 
-contextBridge.exposeInMainWorld('recap', api)
+contextBridge.exposeInMainWorld('hoppy', api)
 
-export type RecapApi = typeof api
+export type HoppyApi = typeof api

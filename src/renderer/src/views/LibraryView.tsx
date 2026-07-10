@@ -27,7 +27,7 @@ export function LibraryView(): JSX.Element {
   const [editValue, setEditValue] = useState('')
 
   useEffect(() => {
-    window.recap.listRecordings().then(setRecordings)
+    window.hoppy.listRecordings().then(setRecordings)
   }, [])
 
   const filtered = filterByTitle(sortRecordings(recordings, sortKey), query)
@@ -53,20 +53,20 @@ export function LibraryView(): JSX.Element {
     const title = editValue.trim()
     setEditingFolder(null)
     if (!title) return
-    await window.recap.renameRecording(folder, title)
+    await window.hoppy.renameRecording(folder, title)
     setRecordings((prev) => prev.map((r) => (r.folder === folder ? { ...r, title } : r)))
   }
 
   function reveal(folder: string, e: React.MouseEvent): void {
     e.stopPropagation()
     setMenuFolder(null)
-    window.recap.revealRecording(folder)
+    window.hoppy.revealRecording(folder)
   }
 
   async function remove(folder: string, e: React.MouseEvent): Promise<void> {
     e.stopPropagation()
     setMenuFolder(null)
-    const deleted = await window.recap.trashRecording(folder)
+    const deleted = await window.hoppy.trashRecording(folder)
     if (deleted) setRecordings((prev) => prev.filter((r) => r.folder !== folder))
   }
 
@@ -114,9 +114,9 @@ export function LibraryView(): JSX.Element {
               className="library-card"
               role="button"
               tabIndex={0}
-              onClick={() => window.recap.openEditor(r.folder)}
+              onClick={() => window.hoppy.openEditor(r.folder)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') window.recap.openEditor(r.folder)
+                if (e.key === 'Enter') window.hoppy.openEditor(r.folder)
               }}
               onContextMenu={(e) => openMenu(r.folder, e)}
             >

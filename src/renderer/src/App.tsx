@@ -23,12 +23,12 @@ export default function App(): JSX.Element {
   // main 이 창에 넣어 둔 초기 컨텍스트를 id 로 당겨온다(pull 모델). shell 은 아직 안 쓴다.
   const [context, setContext] = useState<unknown>(null)
   useEffect(() => {
-    if (params) void window.recap.getWindowContext(params.id).then(setContext)
+    if (params) void window.hoppy.getWindowContext(params.id).then(setContext)
   }, [params])
 
   const [state, setState] = useState<RecordingState>({ status: 'idle' })
 
-  useEffect(() => window.recap.onStateChange(setState), [])
+  useEffect(() => window.hoppy.onStateChange(setState), [])
 
   const goIdle = (): void => setState({ status: 'idle' })
 
@@ -83,7 +83,7 @@ export default function App(): JSX.Element {
 
   return (
     <main className="app">
-      <h1 className="title">Recap</h1>
+      <h1 className="title">Hoppy</h1>
       {state.status === 'idle' && <IdleView />}
       {state.status === 'recording' && <RecordingView state={state} />}
       {state.status === 'error' && <ErrorView state={state} onReset={goIdle} />}

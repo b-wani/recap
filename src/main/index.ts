@@ -214,7 +214,7 @@ function createEditorWindow(context: EditorContext): WindowEntry<BrowserWindow> 
       minWidth: 720,
       minHeight: 560,
       show: false,
-      title: 'Recap 편집기',
+      title: 'Hoppy 편집기',
       icon: brandIconPath()
     },
     context
@@ -459,7 +459,7 @@ function defaultWindowOptions(): Electron.BrowserWindowConstructorOptions {
     width: DEFAULT_WINDOW_SIZE.width,
     height: DEFAULT_WINDOW_SIZE.height,
     show: true,
-    title: 'Recap',
+    title: 'Hoppy',
     icon: brandIconPath()
   }
 }
@@ -477,7 +477,7 @@ function createShellWindow(): WindowEntry<BrowserWindow> {
       minWidth: 720,
       minHeight: 560,
       show: false,
-      title: 'Recap',
+      title: 'Hoppy',
       icon: brandIconPath()
     },
     { role: 'shell' }
@@ -526,7 +526,7 @@ function createWelcomeWindow(): WindowEntry<BrowserWindow> {
       height: WELCOME_WINDOW_SIZE.height,
       resizable: false,
       show: false,
-      title: 'Recap 시작하기',
+      title: 'Hoppy 시작하기',
       icon: brandIconPath()
     },
     { role: 'welcome' }
@@ -1116,8 +1116,8 @@ function registerIpc(): void {
 }
 
 // dev 모드에서도 메뉴바·Dock·창 타이틀이 제품명으로 뜨도록 앱 이름을 고정한다
-// (패키징 전에는 package.json name이 소문자 "recap"으로 잡히기 때문).
-app.setName('Recap')
+// (패키징 전에는 package.json name이 소문자 "hoppy"로 잡히기 때문).
+app.setName('Hoppy')
 
 app.whenReady().then(async () => {
   // dev 실행에서도 Dock 에 브랜드 아이콘이 뜨도록 지정한다(패키징 전 기본 Electron 아이콘 대체).

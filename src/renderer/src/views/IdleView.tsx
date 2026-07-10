@@ -11,7 +11,7 @@ export function IdleView(): JSX.Element {
   const loadTargets = (): void => {
     setLoadError(null)
     setTargets(null)
-    window.recap
+    window.hoppy
       .listTargets()
       .then((list) => {
         setTargets(list)
@@ -24,7 +24,7 @@ export function IdleView(): JSX.Element {
 
   // 앱 시작 시 로컬에 저장된 최근 녹화를 불러온다 (재시작 후 다시 열기).
   useEffect(() => {
-    window.recap.listRecordings().then(setRecent)
+    window.hoppy.listRecordings().then(setRecent)
   }, [])
 
   if (loadError) {
@@ -70,7 +70,7 @@ export function IdleView(): JSX.Element {
       <button
         className="btn btn-record"
         disabled={selectedId === ''}
-        onClick={() => window.recap.start(selectedId)}
+        onClick={() => window.hoppy.start(selectedId)}
       >
         ● 녹화 시작
       </button>
@@ -80,7 +80,7 @@ export function IdleView(): JSX.Element {
           <ul className="recent-list">
             {recent.map((r) => (
               <li key={r.folder}>
-                <button className="recent-item" onClick={() => window.recap.openEditor(r.folder)}>
+                <button className="recent-item" onClick={() => window.hoppy.openEditor(r.folder)}>
                   <span className="recent-thumb" aria-hidden>
                     {r.thumbnailUrl ? (
                       <img src={r.thumbnailUrl} alt="" />
