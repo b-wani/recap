@@ -433,6 +433,50 @@ function ensureShellWindow(): void {
   if (!shellWindow()) createShellWindow()
 }
 
+/** Welcome(온보딩) 창의 고정 크기 — 비리사이즈(#80). */
+const WELCOME_WINDOW_SIZE = { width: 820, height: 580 }
+
+/** 현재 열린 Welcome 창(없으면 null). */
+function welcomeWindow(): BrowserWindow | null {
+  return registry.firstByRole('welcome')?.window ?? null
+}
+
+/**
+ * Welcome(온보딩) 창을 만든다(#80). 고정 820×580 비리사이즈, 표준 타이틀바.
+ * 셸(마스코트 히어로 + 챕터 내비 + 본문 패널)은 렌더러(WelcomeView)가 그리고,
+ * 완료 시(onboarding:complete IPC) 이 창을 닫는 건 registerIpc 의 핸들러가 맡는다.
+ */
+function createWelcomeWindow(): WindowEntry<BrowserWindow> {
+  const entry = createRoleWindow(
+    'welcome',
+    {
+      width: WELCOME_WINDOW_SIZE.width,
+      height: WELCOME_WINDOW_SIZE.height,
+      resizable: false,
+      show: false,
+      title: 'Recap 시작하기',
+      icon: brandIconPath()
+    },
+    { role: 'welcome' }
+  )
+  entry.window.on('ready-to-show', () => entry.window.show())
+  return entry
+}
+
+/**
+ * Welcome 창을 소환한다 — 첫 실행 자동 소환과 트레이 'Welcome 다시 보기' 수동 재소환이
+ * 공유하는 진입점. 이미 떠 있으면 새로 만들지 않고 포커스한다(중복 창 금지).
+ */
+function summonWelcome(): void {
+  const existing = registry.firstByRole('welcome')
+  if (existing) {
+    existing.window.show()
+    existing.window.focus()
+    return
+  }
+  createWelcomeWindow()
+}
+
 /** 캡처 툴바 창의 크기(플로팅 pill). 렌더러가 이 안에 알약 크롬을 그린다. */
 const TOOLBAR_SIZE = { width: 520, height: 96 }
 
@@ -597,7 +641,12 @@ function registerIpc(): void {
         return existing.id
       }
     }
-    const entry = role === 'shell' ? createShellWindow() : createRoleWindow(role, defaultWindowOptions(), context)
+    const entry =
+      role === 'shell'
+        ? createShellWindow()
+        : role === 'welcome'
+          ? createWelcomeWindow()
+          : createRoleWindow(role, defaultWindowOptions(), context)
     return entry.id
   })
 
@@ -608,11 +657,13 @@ function registerIpc(): void {
   ipcMain.handle(IpcChannel.CaptureStart, (_e, mode: CaptureMode) => startFromToolbar(mode))
   ipcMain.handle(IpcChannel.CaptureCancel, () => cancelArming())
 
-  // 온보딩 완료 여부 조회·저장 (userData에 플래그). 렌더러 최상단 화면 분기가 쓴다.
-  ipcMain.handle(IpcChannel.OnboardingStatus, () => isOnboardingComplete(app.getPath('userData')))
-  ipcMain.handle(IpcChannel.OnboardingComplete, () =>
-    saveOnboardingComplete(app.getPath('userData'))
-  )
+  // 완료 시 플래그를 저장하고 Welcome 창을 닫은 뒤(#80), shell 창을 보인다(없으면 새로 만든다).
+  ipcMain.handle(IpcChannel.OnboardingComplete, async () => {
+    await saveOnboardingComplete(app.getPath('userData'))
+    welcomeWindow()?.close()
+    if (shellWindow()) showLauncher()
+    else createShellWindow()
+  })
 
   // 온보딩 권한 단계: 상태 조회(폴링) · 설정 패널 열기 · 재시작 확인 다이얼로그.
   ipcMain.handle(IpcChannel.PermissionStatus, (): PermissionStatus => readPermissionStatus())
@@ -626,7 +677,7 @@ function registerIpc(): void {
 // (패키징 전에는 package.json name이 소문자 "recap"으로 잡히기 때문).
 app.setName('Recap')
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // dev 실행에서도 Dock 에 브랜드 아이콘이 뜨도록 지정한다(패키징 전 기본 Electron 아이콘 대체).
   if (process.platform === 'darwin' && app.dock) {
     const icon = nativeImage.createFromPath(brandIconPath())
@@ -648,7 +699,12 @@ app.whenReady().then(() => {
   })
 
   registerIpc()
-  createShellWindow()
+  // 완료 플래그가 없으면(첫 실행 등) Welcome 창을 자동 소환한다(#80) — 이 판정을
+  // 예전엔 App.tsx(렌더러)가 했지만, 창이 분리되며 main으로 옮겨왔다. 완료 후엔
+  // Welcome이 닫히며 onboarding:complete 핸들러가 shell 창을 새로 만든다.
+  const onboarded = await isOnboardingComplete(app.getPath('userData'))
+  if (onboarded) createShellWindow()
+  else summonWelcome()
   setupTray()
   registerGlobalShortcut()
 
@@ -663,6 +719,7 @@ function setupTray(): void {
   appTray = new AppTray(brandAssetPath('tray-idle.png'), brandAssetPath('tray-recording.png'), {
     onToggleRecord: () => void toggleRecord(),
     onShowLauncher: () => showLauncher(),
+    onShowWelcome: () => summonWelcome(),
     onOpenRecording: (folder) => {
       showLauncher()
       void openRecordingToPreview(folder).catch((err) =>
