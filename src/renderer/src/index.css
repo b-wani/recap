@@ -1,35 +1,36 @@
 :root {
   color-scheme: dark;
 
-  /* Color — 깊은 모노크롬 뉴트럴 (DESIGN.md 토큰) */
-  --bg: #0a0a0b;
-  --surface: #141415;
-  --surface-2: #1a1a1c;
-  --surface-3: #232326;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.14);
-  --text-1: #f5f5f7;
-  --text-2: #a1a1a6;
-  --text-3: #6e6e73;
+  /* Color — 초록빛 다크 캔버스 (Hoppy C-dark 토큰) */
+  --bg: #0c140a;
+  --surface: #131d10;
+  --surface-2: #1a2716;
+  --surface-3: #22331d;
+  --border: rgba(180, 230, 160, 0.1);
+  --border-strong: rgba(180, 230, 160, 0.18);
+  --text-1: #f2f6ee;
+  --text-2: #a7bd9c;
+  --text-3: #6f8465;
+
+  /* Grass 그린 — Primary 액센트(go·전진 신호) */
+  --grass: #4cc93f;
+  --grass-hover: #5cd94e;
+  --grass-ink: #0a1f0c;
 
   /* REC 레드 — 성역(녹화·삭제 전용) */
-  --rec: #ff453a;
-  --rec-hover: #ff5a4f;
+  --rec: #ff4b4b;
+  --rec-hover: #ff6161;
 
-  /* Primary(화이트) — 주요 액션·활성 선택 */
-  --primary: #f5f5f7;
-  --primary-ink: #0a0a0b;
-  --primary-hover: #e4e4e7;
-
-  /* 타임라인 줌 구간 — 뉴트럴(파랑 폐지) */
-  --zoom: #55555a;
-  --zoom-hover: #6a6a70;
+  /* 타임라인 줌 구간 — 뉴트럴 회록색(그린과 충돌 회피) */
+  --zoom: #44513d;
+  --zoom-hover: #54634b;
 
   /* 경고·트림 핸들 — 앰버(레드 아님) */
-  --warn: #ff9f0a;
+  --warn: #ffc233;
 
   /* Typography */
   --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --font-display: 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --text-xs: 12px;
   --text-sm: 13px;
@@ -39,10 +40,10 @@
   --text-xl: 40px;
 
   /* Radius */
-  --radius-s: 6px;
-  --radius-m: 10px;
-  --radius-l: 12px;
-  --radius-full: 999px;
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+  --radius-pill: 999px;
 
   /* Spacing */
   --space-1: 4px;
@@ -74,6 +75,7 @@ body {
 }
 
 .title {
+  font-family: var(--font-display);
   font-size: var(--text-md);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -142,7 +144,7 @@ body {
 .btn-stop {
   background: var(--rec);
   border-color: transparent;
-  color: #fff;
+  color: var(--text-1);
 }
 
 .btn-record:hover,
@@ -156,15 +158,16 @@ body {
   color: var(--text-3);
 }
 
-/* 익스포트 — 주요 액션(화이트 primary). */
+/* 익스포트 — 주요 액션(그린 primary·pill). */
 .btn-export {
-  background: var(--primary);
+  background: var(--grass);
   border-color: transparent;
-  color: var(--primary-ink);
+  color: var(--grass-ink);
+  border-radius: var(--radius-pill);
 }
 
 .btn-export:hover {
-  background: var(--primary-hover);
+  background: var(--grass-hover);
   filter: none;
 }
 
@@ -369,11 +372,11 @@ body {
   background: var(--surface-3);
 }
 
-/* 선택 상태 — 화이트 강조(파랑 폐지). */
+/* 선택 상태 — 그린 강조(활성/선택 신호). */
 .target-card.is-selected {
   background: var(--surface-3);
   border-color: transparent;
-  outline: 1px solid var(--text-1);
+  outline: 1px solid var(--grass);
   outline-offset: -1px;
 }
 
@@ -591,7 +594,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-s);
   cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .bg-swatch:hover {
@@ -599,8 +602,8 @@ body {
 }
 
 .bg-swatch.is-active {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--primary);
+  border-color: var(--grass);
+  box-shadow: 0 0 0 1px var(--grass);
 }
 
 /* 단색 스와치는 컬러 인풋을 덮어 클릭 시 피커를 연다. */
@@ -637,15 +640,15 @@ body {
   font-family: var(--font-ui);
 }
 
-/* 활성 선택 — 화이트 primary */
+/* 활성 선택 — 그린 primary */
 .btn-scale.is-active {
-  background: var(--primary);
+  background: var(--grass);
   border-color: transparent;
-  color: var(--primary-ink);
+  color: var(--grass-ink);
 }
 
 .btn-scale.is-active:hover {
-  background: var(--primary-hover);
+  background: var(--grass-hover);
   filter: none;
 }
 
@@ -676,16 +679,16 @@ body {
 
 .progress-bar {
   height: 6px;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   background: var(--surface-3);
   overflow: hidden;
 }
 
-/* 진행 바 채움 — 주요 액션이므로 화이트(파랑 폐지). */
+/* 진행 바 채움 — 주요 액션이므로 그린. */
 .progress-fill {
   height: 100%;
-  background: var(--primary);
-  border-radius: var(--radius-full);
+  background: var(--grass);
+  border-radius: var(--radius-pill);
   transition: width 0.15s linear;
 }
 
@@ -766,16 +769,16 @@ body {
   touch-action: none;
 }
 
-/* 트림 창 밖 구간 — 최종 영상에서 제외됨. */
+/* 트림 창 밖 구간 — 최종 영상에서 제외됨(다크 캔버스 스크림). */
 .tl-trimmed {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
   pointer-events: none;
 }
 
-/* 줌 구간 블록 — 뉴트럴(파랑 폐지). */
+/* 줌 구간 블록 — 뉴트럴 회록색. */
 .tl-seg {
   position: absolute;
   top: var(--space-2);
@@ -797,7 +800,7 @@ body {
 }
 
 .tl-seg.is-selected {
-  outline: 2px solid var(--text-1);
+  outline: 2px solid var(--grass);
   outline-offset: 1px;
   z-index: 2;
 }
@@ -823,7 +826,7 @@ body {
   justify-content: center;
   cursor: ew-resize;
   touch-action: none;
-  background: rgba(255, 255, 255, 0.22);
+  background: color-mix(in srgb, var(--text-1) 22%, transparent);
   opacity: 0;
   transition: opacity 0.12s ease;
 }
@@ -837,12 +840,12 @@ body {
   content: '';
   width: 2px;
   height: 40%;
-  border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text-1) 85%, transparent);
 }
 
 .tl-seg-edge:hover {
-  background: rgba(255, 255, 255, 0.4);
+  background: color-mix(in srgb, var(--text-1) 40%, transparent);
 }
 
 .tl-seg-edge-start {
@@ -886,8 +889,8 @@ body {
   content: '';
   width: 2px;
   height: 44%;
-  border-radius: var(--radius-full);
-  background: rgba(0, 0, 0, 0.45);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
 }
 
 .tl-trim-handle:hover {
@@ -946,6 +949,7 @@ body {
 }
 
 .error h2 {
+  font-family: var(--font-display);
   color: var(--warn);
 }
 
@@ -978,7 +982,6 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--radius-l);
   background: var(--surface);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
 }
 
 .onboarding-progress {
@@ -993,6 +996,7 @@ body {
 
 .onboarding-step-title {
   margin: 0;
+  font-family: var(--font-display);
   font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-1);
@@ -1098,7 +1102,7 @@ body {
 }
 
 .onboarding-dot.is-active {
-  background: var(--primary);
+  background: var(--grass);
 }
 
 .onboarding-nav {
@@ -1156,7 +1160,7 @@ body {
 }
 
 .permission-status.is-granted {
-  color: #30d158;
+  color: var(--grass);
 }
 
 .permission-allow {
