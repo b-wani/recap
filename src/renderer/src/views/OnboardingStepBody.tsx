@@ -17,7 +17,7 @@ export function OnboardingStepBody({ id }: { id: OnboardingStepId }): JSX.Elemen
       return (
         <div className="onboarding-body">
           <p className="onboarding-lead">
-            Recap은 개발한 화면을 녹화하고 자동 효과를 입혀, GitHub issue/PR·업무 티켓에 첨부할
+            Hoppy는 개발한 화면을 녹화하고 자동 효과를 입혀, GitHub issue/PR·업무 티켓에 첨부할
             짧은 데모 영상(1~2분)을 만드는 macOS 앱이에요.
           </p>
           <ul className="onboarding-list">
@@ -108,7 +108,7 @@ export function OnboardingStepBody({ id }: { id: OnboardingStepId }): JSX.Elemen
             녹화 중에 누르면 바로 정지합니다. 어떤 앱을 쓰고 있든 동작해요.
           </p>
           <p className="onboarding-note">
-            Recap은 메뉴바에 상주해요. 창을 닫아도 종료되지 않고, 메뉴바 아이콘 →
+            Hoppy는 메뉴바에 상주해요. 창을 닫아도 종료되지 않고, 메뉴바 아이콘 →
             “Welcome 다시 보기”로 이 안내를 언제든 다시 열 수 있어요.
           </p>
         </div>
@@ -121,11 +121,11 @@ export function OnboardingStepBody({ id }: { id: OnboardingStepId }): JSX.Elemen
             <dt>녹화가 안 돼요</dt>
             <dd>
               화면 녹화 권한이 필요해요. 시스템 설정 &gt; 개인정보 보호 및 보안 &gt; 화면 기록에서
-              Recap을 켜세요. 개발 중에는 목록에 &quot;Electron&quot;으로 표시됩니다.
+              Hoppy를 켜세요. 개발 중에는 목록에 &quot;Electron&quot;으로 표시됩니다.
             </dd>
             <dt>파일은 어디에 저장되나요</dt>
             <dd>
-              녹화는 <code>~/Movies/Recap/</code> 아래 녹화 시각별 폴더에 저장돼요. 익스포트한
+              녹화는 <code>~/Movies/Hoppy/</code> 아래 녹화 시각별 폴더에 저장돼요. 익스포트한
               파일은 저장할 위치를 직접 고릅니다.
             </dd>
             <dt>GIF가 너무 커요</dt>

@@ -50,10 +50,10 @@ export function ExportPanel({
           <p className="export-warn">⚠ {limitLabel(status.format)}을 초과했습니다</p>
         )}
         <div className="export-actions">
-          <button className="btn btn-sm" onClick={() => window.recap.revealExport(status.path)}>
+          <button className="btn btn-sm" onClick={() => window.hoppy.revealExport(status.path)}>
             Finder에서 열기
           </button>
-          <button className="btn btn-sm" onClick={() => window.recap.copyExportPath(status.path)}>
+          <button className="btn btn-sm" onClick={() => window.hoppy.copyExportPath(status.path)}>
             경로 복사
           </button>
         </div>

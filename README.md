@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/wordmark.svg" alt="Recap" width="360">
+  <img src="assets/brand/wordmark.svg" alt="Hoppy" width="360">
 </p>
 
 <p align="center">

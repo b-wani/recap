@@ -1,7 +1,7 @@
-import type { RecapApi } from './index'
+import type { HoppyApi } from './index'
 
 declare global {
   interface Window {
-    recap: RecapApi
+    hoppy: HoppyApi
   }
 }

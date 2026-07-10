@@ -1,7 +1,7 @@
 /**
  * 녹화 로컬 영속화 — 녹화 폴더를 읽고 쓰는 유일한 지점.
  *
- * 한 녹화는 ~/Movies/Recap/{timestamp}/ 폴더 하나다. 그 안에:
+ * 한 녹화는 ~/Movies/Hoppy/{timestamp}/ 폴더 하나다. 그 안에:
  *  - 원본 영상 (사이드카가 기록)
  *  - events.json  (이벤트 트랙)
  *  - recipe.json  (렌더 레시피 — 편집 상태. 미리보기에서 유도·편집되어 저장된다)
@@ -53,7 +53,7 @@ const MANIFEST_VERSION = 1
 
 /** 녹화들이 저장되는 최상위 폴더. Recorder와 이 모듈이 공유하는 단일 기준. */
 export function recordingsBaseDir(): string {
-  return join(homedir(), 'Movies', 'Recap')
+  return join(homedir(), 'Movies', 'Hoppy')
 }
 
 /** 녹화 폴더에 매니페스트를 쓴다. 녹화 마무리 시 세 산출물을 묶는다. */

@@ -19,7 +19,7 @@ import { recordingsBaseDir, writeManifest, MANIFEST_VERSION } from './storage'
  */
 
 export interface RecordingResult {
-  /** 녹화 폴더 (~/Movies/Recap/{timestamp}). */
+  /** 녹화 폴더 (~/Movies/Hoppy/{timestamp}). */
   folder: string
   /** 원본 영상 파일 절대 경로. */
   videoPath: string

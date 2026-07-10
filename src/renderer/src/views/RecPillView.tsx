@@ -9,7 +9,7 @@ import { formatElapsed } from '../format'
  */
 export function RecPillView(): JSX.Element {
   const [state, setState] = useState<RecordingState>({ status: 'idle' })
-  useEffect(() => window.recap.onStateChange(setState), [])
+  useEffect(() => window.hoppy.onStateChange(setState), [])
 
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -23,7 +23,7 @@ export function RecPillView(): JSX.Element {
     <div className="rec-pill">
       <span className="rec-dot" aria-hidden />
       <span className="rec-time">{formatElapsed(now - startedAt)}</span>
-      <button className="btn btn-stop rec-pill-stop" onClick={() => void window.recap.stop()}>
+      <button className="btn btn-stop rec-pill-stop" onClick={() => void window.hoppy.stop()}>
         ■ 정지
       </button>
     </div>

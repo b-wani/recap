@@ -23,8 +23,8 @@ export function WindowPickerOverlayView({ windowId }: { windowId: number }): JSX
   const hoveringRef = useRef(false)
 
   useEffect(() => {
-    void window.recap.getWindowContext(windowId).then((c) => setContext(c as WindowPickerOverlayContext))
-    void window.recap.listTargets().then(setTargets)
+    void window.hoppy.getWindowContext(windowId).then((c) => setContext(c as WindowPickerOverlayContext))
+    void window.hoppy.listTargets().then(setTargets)
   }, [windowId])
 
   useEffect(() => {
@@ -49,13 +49,13 @@ export function WindowPickerOverlayView({ windowId }: { windowId: number }): JSX
         })
         if (!hoveringRef.current) {
           hoveringRef.current = true
-          void window.recap.overlayHover(true)
+          void window.hoppy.overlayHover(true)
         }
       } else {
         setHover(null)
         if (hoveringRef.current) {
           hoveringRef.current = false
-          void window.recap.overlayHover(false)
+          void window.hoppy.overlayHover(false)
         }
       }
     }
@@ -68,7 +68,7 @@ export function WindowPickerOverlayView({ windowId }: { windowId: number }): JSX
   // 클릭은 애초에 이 핸들러에 닿지 않고 아래 창으로 흘러간다.
   const onClick = (): void => {
     if (!hover) return
-    void window.recap.overlaySelect(hover.target.id)
+    void window.hoppy.overlaySelect(hover.target.id)
   }
 
   return (
