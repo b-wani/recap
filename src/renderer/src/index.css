@@ -174,6 +174,39 @@ body {
   filter: none;
 }
 
+/* 상단 바 익스포트 — 화면에서 가장 미는 primary 액션(그린, 굵게). */
+.btn-export-primary {
+  background: var(--grass);
+  border-color: transparent;
+  color: var(--grass-ink);
+  border-radius: var(--radius-pill);
+  font-weight: 600;
+}
+
+.btn-export-primary:hover {
+  background: var(--grass-hover);
+  filter: none;
+}
+
+/* 익스포트 버튼 아래 팝오버 — 포맷 선택/진행률/완료 액션(4상태 그대로). */
+.export-anchor {
+  position: relative;
+  flex: none;
+}
+
+.export-popover {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 10;
+  width: 260px;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
 /* 삭제 등 파괴적 액션 — 레드를 신호로만, 면적은 작게(외곽선). */
 .btn-danger {
   background: transparent;
@@ -453,7 +486,7 @@ body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
     'canvas sidebar'
@@ -703,9 +736,16 @@ body {
 
 .export-done-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--space-2);
   font-size: var(--text-sm);
+}
+
+/* 익스포트 완료 순간에만 허용되는 마스코트(디자인 언어 규칙) — 작게, 텍스트 옆. */
+.export-mascot {
+  width: 22px;
+  height: 22px;
+  flex: none;
 }
 
 .export-done-size {
@@ -749,6 +789,13 @@ body {
   min-width: 40px;
 }
 
+/* 프레임 스텝(◀|/|▶) — 재생 토글보다 작은 보조 액션. */
+.playback-step {
+  flex: none;
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-mono);
+}
+
 .playback-time {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -763,13 +810,45 @@ body {
   user-select: none;
 }
 
-.tl-track {
+/* 두 레인(클립 · 줌 구간)을 세로로 쌓는 래퍼 — 재생 헤드가 이 안에서 전체를 관통한다. */
+.tl-lanes {
   position: relative;
-  height: 56px;
+  width: 100%;
+  touch-action: none;
+}
+
+.tl-lane-label {
+  margin: 0 0 var(--space-1);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tl-lane {
+  position: relative;
   border-radius: var(--radius-m);
   background: var(--surface-2);
   overflow: hidden;
-  touch-action: none;
+}
+
+.tl-lane-clip {
+  height: 46px;
+  margin-bottom: var(--space-3);
+}
+
+.tl-lane-zoom {
+  height: 40px;
+}
+
+/* 필름스트립 — 클립 레인의 시간축 질감(썸네일 스트립 대체 텍스처). */
+.tl-film {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--bg) 30%, var(--surface-2)) 0 1px, transparent 1px 64px),
+    linear-gradient(90deg, var(--surface-3), var(--surface-2));
 }
 
 /* 트림 창 밖 구간 — 최종 영상에서 제외됨(다크 캔버스 스크림). */
@@ -779,6 +858,7 @@ body {
   bottom: 0;
   background: color-mix(in srgb, var(--bg) 60%, transparent);
   pointer-events: none;
+  z-index: 1;
 }
 
 /* 줌 구간 블록 — 뉴트럴 회록색. */

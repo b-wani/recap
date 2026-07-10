@@ -41,6 +41,8 @@ export function ExportPanel({
     return (
       <div className="export-done">
         <div className="export-done-head">
+          {/* 마스코트는 크롬에 없고 익스포트 완료 표면에만 1회 등장한다(디자인 언어 규칙). */}
+          <ExportMascot />
           <span>{status.format.toUpperCase()} 저장 완료</span>
           <span className="export-done-size">{formatMB(status.sizeBytes)}</span>
         </div>
@@ -71,5 +73,29 @@ export function ExportPanel({
         </button>
       </div>
     </div>
+  )
+}
+
+/**
+ * 익스포트 완료 전용 마스코트 — 에디터 크롬(툴바·패널·타임라인)에는 절대 넣지 않고
+ * 완료 표면에만 1회 등장한다(디자인 언어 규칙). 최종 에셋은 #55 로고 확정 후 대체.
+ */
+function ExportMascot(): JSX.Element {
+  return (
+    <svg className="export-mascot" viewBox="0 0 120 120" aria-hidden>
+      <path
+        d="M60 30c26 0 40 20 40 44 0 20-16 30-40 30S20 94 20 74c0-24 14-44 40-44z"
+        fill="#4cc93f"
+      />
+      <circle cx="42" cy="34" r="15" fill="#4cc93f" />
+      <circle cx="78" cy="34" r="15" fill="#4cc93f" />
+      <circle cx="42" cy="34" r="10" fill="#f2f6ee" />
+      <circle cx="78" cy="34" r="10" fill="#f2f6ee" />
+      <circle cx="45" cy="36" r="5" fill="#0a1f0c" />
+      <circle cx="75" cy="36" r="5" fill="#0a1f0c" />
+      <circle cx="47" cy="34" r="1.6" fill="#fff" />
+      <circle cx="77" cy="34" r="1.6" fill="#fff" />
+      <path d="M46 74q14 12 28 0" stroke="#0a1f0c" strokeWidth="4" fill="none" strokeLinecap="round" />
+    </svg>
   )
 }
