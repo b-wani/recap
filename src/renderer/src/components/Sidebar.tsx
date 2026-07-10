@@ -6,14 +6,14 @@ import {
   type RenderRecipe
 } from '../../../shared/recipe'
 import { setZoomSegmentScale } from '../../../shared/recipe.edit'
-import { type ExportFormat } from '../../../shared/export-preset'
-import { ExportPanel, type ExportStatus } from './ExportPanel'
 
 /**
  * 우측 설정 사이드바 — 단일 스크롤 패널. 선택 상태에 따라 두 모드로 그린다:
  *
- * - 기본 패널: 배경/패딩 · 커서 · 배지/키 오버레이 · 익스포트 섹션 (탭 없이 한 컬럼).
+ * - 기본 패널: 배경/패딩 · 커서 · 배지/키 오버레이 섹션 (탭 없이 한 컬럼).
  * - 컨텍스트 패널: 타임라인에서 줌 구간을 선택하면 그 구간의 배율·삭제만 보여준다.
+ *
+ * 익스포트는 상단 바 primary 버튼(팝오버)로 옮겨졌다(#76, D3) — 여기서는 다루지 않는다.
  *
  * 편집은 전부 update(레시피 변환)로 올리고, 줌 삭제는 상위가 선택 해제까지 처리하도록
  * onDeleteSegment로 위임한다(선택 상태는 상위의 useState 하나가 소유한다).
@@ -23,8 +23,6 @@ export function Sidebar({
   update,
   selected,
   onDeleteSegment,
-  exportStatus,
-  onExport,
   eventCount,
   folder
 }: {
@@ -32,8 +30,6 @@ export function Sidebar({
   update: (fn: (r: RenderRecipe) => RenderRecipe) => void
   selected: number | null
   onDeleteSegment: (index: number) => void
-  exportStatus: ExportStatus
-  onExport: (format: ExportFormat) => void
   eventCount: number
   folder: string
 }): JSX.Element {
@@ -248,12 +244,6 @@ export function Sidebar({
           />
           <span>키 입력 오버레이</span>
         </label>
-      </fieldset>
-
-      {/* ④ 익스포트 */}
-      <fieldset className="side-section">
-        <legend className="side-section-title">익스포트</legend>
-        <ExportPanel status={exportStatus} onExport={onExport} />
       </fieldset>
 
       {/* 메타 정보 */}

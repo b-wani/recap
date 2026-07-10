@@ -13,7 +13,7 @@ import { renderRecipeToMp4, renderRecipeToGif } from '../export'
 import { formatElapsed } from '../format'
 import { Timeline } from '../components/Timeline'
 import { Sidebar } from '../components/Sidebar'
-import { type ExportStatus } from '../components/ExportPanel'
+import { ExportPanel, type ExportStatus } from '../components/ExportPanel'
 
 /**
  * 합성된 캔버스의 현재 프레임을 작은 JPEG로 줄여 녹화 폴더에 썸네일 캐시로 저장한다.
@@ -52,6 +52,21 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
   const [exportStatus, setExportStatus] = useState<ExportStatus>({ phase: 'idle' })
   const [playing, setPlaying] = useState(true)
   const [currentMs, setCurrentMs] = useState(0)
+  // 상단 바 익스포트 버튼 아래 팝오버 열림 상태(D3: 익스포트 동선을 상단 바 primary로).
+  const [exportOpen, setExportOpen] = useState(false)
+  const exportBoxRef = useRef<HTMLDivElement>(null)
+
+  // 팝오버 밖 클릭 시 닫는다(인코딩 중에는 진행 상황을 계속 보여주도록 열어 둔다).
+  useEffect(() => {
+    if (!exportOpen) return
+    const onDown = (e: PointerEvent): void => {
+      if (exportBoxRef.current && !exportBoxRef.current.contains(e.target as Node)) {
+        setExportOpen(false)
+      }
+    }
+    window.addEventListener('pointerdown', onDown)
+    return () => window.removeEventListener('pointerdown', onDown)
+  }, [exportOpen])
 
   // Esc로 선택을 해제해 사이드바를 기본 패널로 되돌린다.
   useEffect(() => {
@@ -61,6 +76,21 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // 프레임 스텝(1/60s) — 재생 컨트롤의 ◀|/|▶ 버튼과 ←/→ 단축키가 공유한다.
+  const stepFrame = (dir: -1 | 1): void => {
+    const video = videoRef.current
+    const recipe = recipeRef.current
+    if (!video || !recipe) return
+    const frameMs = 1000 / 60
+    const nextMs = Math.min(
+      recipe.trim.endMs,
+      Math.max(recipe.trim.startMs, video.currentTime * 1000 + dir * frameMs)
+    )
+    video.pause()
+    video.currentTime = nextMs / 1000
+    setCurrentMs(nextMs)
+  }
 
   // 재생 단축키(편집기 마운트 동안만): Space 재생/정지, ←/→ 프레임(1/60s) 이동.
   // 입력 필드·색상 피커 포커스 중에는 타이핑/조작과 충돌하지 않도록 무시한다.
@@ -77,23 +107,14 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
         return
       }
       const video = videoRef.current
-      const recipe = recipeRef.current
-      if (!video || !recipe) return
+      if (!video || !recipeRef.current) return
       if (e.key === ' ') {
         e.preventDefault()
         if (video.paused) void video.play()
         else video.pause()
       } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault()
-        const frameMs = 1000 / 60
-        const dir = e.key === 'ArrowRight' ? 1 : -1
-        const nextMs = Math.min(
-          recipe.trim.endMs,
-          Math.max(recipe.trim.startMs, video.currentTime * 1000 + dir * frameMs)
-        )
-        video.pause()
-        video.currentTime = nextMs / 1000
-        setCurrentMs(nextMs)
+        stepFrame(e.key === 'ArrowRight' ? 1 : -1)
       }
     }
     window.addEventListener('keydown', onKey)
@@ -223,7 +244,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
         style={{ display: 'none' }}
       />
 
-      {/* 캔버스 위 얇은 메타 바 — 대상·길이 + 재녹화 액션 */}
+      {/* 상단 바 — 좌측 녹화 정체성(대상·길이), 우측 재녹화 + 익스포트(primary) */}
       <header className="editor-bar">
         <div className="editor-bar-meta">
           <span>
@@ -241,6 +262,20 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
         <button className="btn btn-record btn-sm" onClick={() => window.recap.start(state.target.id)}>
           ● 같은 대상 다시 녹화
         </button>
+        <div className="export-anchor" ref={exportBoxRef}>
+          <button
+            className="btn btn-export-primary"
+            onClick={() => setExportOpen((v) => !v)}
+            aria-expanded={exportOpen}
+          >
+            익스포트 ▸
+          </button>
+          {exportOpen && (
+            <div className="export-popover">
+              <ExportPanel status={exportStatus} onExport={handleExport} />
+            </div>
+          )}
+        </div>
       </header>
 
       {/* 3영역: 좌상단 캔버스 · 우측 사이드바 · 하단 전폭 타임라인 */}
@@ -255,8 +290,6 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
             update={update}
             selected={selected}
             onDeleteSegment={onDeleteSegment}
-            exportStatus={exportStatus}
-            onExport={handleExport}
             eventCount={state.eventCount}
             folder={state.folder}
           />
@@ -266,11 +299,25 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
           <div className="editor-timeline">
             <div className="playback">
               <button
+                className="btn btn-sm playback-step"
+                onClick={() => stepFrame(-1)}
+                aria-label="이전 프레임"
+              >
+                ◀|
+              </button>
+              <button
                 className="btn btn-sm playback-toggle"
                 onClick={togglePlay}
                 aria-label={playing ? '일시정지' : '재생'}
               >
                 {playing ? '⏸' : '▶'}
+              </button>
+              <button
+                className="btn btn-sm playback-step"
+                onClick={() => stepFrame(1)}
+                aria-label="다음 프레임"
+              >
+                |▶
               </button>
               <span className="playback-time">
                 {formatElapsed(Math.max(0, currentMs - recipe.trim.startMs))} / {formatElapsed(lengthMs)}
