@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { RecordingState } from '../../../shared/ipc'
+import type { EditorContext } from '../../../shared/ipc'
 import {
   deriveRecipe,
   sampleComposition,
@@ -37,13 +37,12 @@ async function saveThumbnailFromCanvas(canvas: HTMLCanvasElement, folder: string
   await window.recap.saveThumbnail(folder, await blob.arrayBuffer())
 }
 
-export function PreviewView({
-  state,
-  onExit
-}: {
-  state: Extract<RecordingState, { status: 'preview' }>
-  onExit: () => void
-}): JSX.Element {
+/**
+ * 에디터 창의 렌더러 엔트리(role 'editor', #75). 독립 문서창 하나가 녹화 하나를 편집한다 —
+ * 자기 컨텍스트(연 녹화물 + recipe 편집분)를 창 로컬로 소유하며, 전역 캡처 상태는 구독하지
+ * 않는다. `context`는 main이 `window:get-context`로 돌려준 페이로드(App.tsx가 pull).
+ */
+export function EditorView({ context: state }: { context: EditorContext }): JSX.Element {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const recipeRef = useRef<RenderRecipe | null>(null)
@@ -53,12 +52,6 @@ export function PreviewView({
   const [exportStatus, setExportStatus] = useState<ExportStatus>({ phase: 'idle' })
   const [playing, setPlaying] = useState(true)
   const [currentMs, setCurrentMs] = useState(0)
-
-  // 편집기 진입 동안 창을 넓히고(#35), 목록·재녹화 등으로 벗어나면 원래 크기로 되돌린다.
-  useEffect(() => {
-    void window.recap.setEditorMode(true)
-    return () => void window.recap.setEditorMode(false)
-  }, [])
 
   // Esc로 선택을 해제해 사이드바를 기본 패널로 되돌린다.
   useEffect(() => {
@@ -108,7 +101,7 @@ export function PreviewView({
   }, [])
 
   // RAF 루프·익스포트는 최신 레시피를 ref로 읽는다 — 편집(타임라인·배경/배지·커서)이 다음 프레임에 즉시 반영된다.
-  // 편집 상태는 그대로 녹화 폴더에 저장해 다시 열었을 때 복원되게 한다(이슈 #9 영속화).
+  // 편집 상태는 그대로 녹화 폴더에 저장해 다시 열었을 때 복원되게 한다(이슈 #9 영속화). 저장은 창 로컬로 동작한다.
   useEffect(() => {
     recipeRef.current = recipe
     if (recipe) void window.recap.saveRecipe(state.folder, recipe)
@@ -230,11 +223,8 @@ export function PreviewView({
         style={{ display: 'none' }}
       />
 
-      {/* 캔버스 위 얇은 메타 바 — 대상·길이 + 목록/재녹화 액션 */}
+      {/* 캔버스 위 얇은 메타 바 — 대상·길이 + 재녹화 액션 */}
       <header className="editor-bar">
-        <button className="btn btn-ghost btn-sm" onClick={onExit}>
-          ← 목록
-        </button>
         <div className="editor-bar-meta">
           <span>
             {state.target.kind === 'display' ? '전체 화면' : '창'} — {state.target.title} (

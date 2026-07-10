@@ -18,7 +18,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { writeFile } from 'node:fs/promises'
 import { is } from '@electron-toolkit/utils'
-import { Recorder } from './recorder'
+import { Recorder, type RecordingResult } from './recorder'
 import { AppTray } from './tray'
 import { WindowRegistry, type WindowEntry } from './window-registry'
 import { matchDisplayTargets } from './display-overlay'
@@ -38,6 +38,7 @@ import {
   type RecordingState,
   type RecordingSummary,
   type ExportSaveResult,
+  type EditorContext,
   type OverlayContext,
   type WindowPickerOverlayContext,
   type AreaOverlayContext,
@@ -92,7 +93,7 @@ let armingMode: CaptureMode = 'display'
 
 /** 목록·녹화 등 기본 화면의 창 크기. */
 const DEFAULT_WINDOW_SIZE = { width: 1180, height: 760 }
-/** 편집기(미리보기 + 사이드바 + 타임라인) 진입 시 넓히는 창 크기(#35). */
+/** 에디터(미리보기 + 사이드바 + 타임라인) 창의 초기 크기(#35, 독립 창 추출은 #75). */
 const EDITOR_WINDOW_SIZE = { width: 1200, height: 760 }
 
 function sidecarPath(): string {
@@ -139,8 +140,9 @@ function applyState(state: RecordingState): void {
 
 /**
  * 상태에 맞춰 창 표시를 조정한다. 녹화 중에는 창을 숨겨 캡처 대상을 가리지 않고
- * (트레이가 상태를 표시), 정지 → 미리보기/오류 진입 시 편집기 창을 자동으로 띄운다.
- * idle 은 사용자가 숨긴 상태를 존중해 건드리지 않는다(트레이로 재호출 가능).
+ * (트레이가 상태를 표시), 오류 진입 시 shell 창을 자동으로 띄운다. idle 은 사용자가
+ * 숨긴 상태를 존중해 건드리지 않는다(트레이로 재호출 가능). 정지 시 에디터 창 자동
+ * 생성은 `createEditorWindow`가 별도로 맡는다(전역 상태와 무관한 창이라 여기서 다루지 않는다).
  */
 function syncWindowForState(state: RecordingState): void {
   switch (state.status) {
@@ -148,7 +150,6 @@ function syncWindowForState(state: RecordingState): void {
       shellWindow()?.hide()
       showRecPill()
       break
-    case 'preview':
     case 'error':
       destroyRecPill()
       showLauncher()
@@ -167,14 +168,22 @@ function showLauncher(): void {
   win.focus()
 }
 
-/**
- * 저장된 녹화를 다시 열어 미리보기 상태로 복원한다. 저장된 레시피가 있으면 그대로,
- * 없으면 렌더러가 이벤트 트랙에서 다시 유도한다. IPC(최근 목록 클릭)·트레이가 공유한다.
- */
-async function openRecordingToPreview(folder: string): Promise<void> {
+/** 방금 끝난 녹화 결과를 에디터 컨텍스트로 옮긴다(레시피는 아직 없음 — 렌더러가 유도). */
+function editorContextFromResult(result: RecordingResult): EditorContext {
+  return {
+    videoUrl: mediaUrl(result.videoPath),
+    folder: result.folder,
+    durationMs: result.durationMs,
+    eventCount: result.eventCount,
+    target: result.target,
+    eventTrack: result.eventTrack
+  }
+}
+
+/** 저장된 녹화 폴더를 에디터 컨텍스트로 로드한다. 저장된 레시피가 있으면 함께 싣는다. */
+async function editorContextFromFolder(folder: string): Promise<EditorContext> {
   const loaded = await loadRecording(folder)
-  applyState({
-    status: 'preview',
+  return {
     videoUrl: mediaUrl(loaded.videoPath),
     folder: loaded.folder,
     durationMs: loaded.durationMs,
@@ -182,7 +191,37 @@ async function openRecordingToPreview(folder: string): Promise<void> {
     eventTrack: loaded.eventTrack,
     target: loaded.target,
     ...(loaded.recipe ? { recipe: loaded.recipe } : {})
+  }
+}
+
+/**
+ * 독립 에디터 창을 만든다(#75). 다중 인스턴스 — 닫으면 destroy, 여러 녹화를 동시에
+ * 여러 창으로 열 수 있다. 캡처 상태를 구독하지 않으며, 자기 컨텍스트만 창 로컬로 소유한다.
+ */
+function createEditorWindow(context: EditorContext): WindowEntry<BrowserWindow> {
+  const entry = createRoleWindow(
+    'editor',
+    {
+      width: EDITOR_WINDOW_SIZE.width,
+      height: EDITOR_WINDOW_SIZE.height,
+      minWidth: 720,
+      minHeight: 560,
+      show: false,
+      title: 'Recap 편집기',
+      icon: brandIconPath()
+    },
+    context
+  )
+  entry.window.once('ready-to-show', () => {
+    entry.window.show()
+    entry.window.focus()
   })
+  return entry
+}
+
+/** 저장된 녹화 폴더를 에디터 창으로 연다. IPC(`editor:open`)·트레이 '최근 녹화'가 공유한다. */
+async function openEditorForFolder(folder: string): Promise<void> {
+  createEditorWindow(await editorContextFromFolder(folder))
 }
 
 const PERMISSION_MESSAGE =
@@ -310,15 +349,10 @@ async function startRecording(targetId: string, sourceRect?: Rect): Promise<void
         applyState({ status: 'error', code, message })
       },
       onComplete: (result) => {
-        applyState({
-          status: 'preview',
-          videoUrl: mediaUrl(result.videoPath),
-          folder: result.folder,
-          durationMs: result.durationMs,
-          eventCount: result.eventCount,
-          target: result.target,
-          eventTrack: result.eventTrack
-        })
+        // 녹화 정지 → 저장 완료. 전역 캡처 상태는 idle로 복귀하고, 결과물은 새 에디터
+        // 창으로 연다(#75) — 편집 상태(recipe)는 에디터 창이 자기 로컬로 소유한다.
+        applyState({ status: 'idle' })
+        createEditorWindow(editorContextFromResult(result))
       }
     },
     undefined,
@@ -885,7 +919,7 @@ function registerIpc(): void {
     saveThumbnail(folder, Buffer.from(bytes))
   )
 
-  ipcMain.handle(IpcChannel.OpenRecording, (_e, folder: string) => openRecordingToPreview(folder))
+  ipcMain.handle(IpcChannel.EditorOpen, (_e, folder: string) => openEditorForFolder(folder))
 
   // 렌더러가 인코딩한 익스포트 바이트를 녹화 폴더에 저장한다(export.mp4 / export.gif).
   ipcMain.handle(
@@ -913,15 +947,6 @@ function registerIpc(): void {
 
   ipcMain.handle(IpcChannel.ExportCopyPath, (_e, path: string) => {
     clipboard.writeText(path)
-  })
-
-  // 편집기 진입 시 창을 넓히고 이탈 시 원래 크기로 되돌린다. 최대화 상태면 건드리지 않는다.
-  // (전환기 동안 편집기가 shell 창에 살아 유지 — 폐기는 에디터 창 추출 티켓 #75.)
-  ipcMain.handle(IpcChannel.SetEditorMode, (_e, on: boolean) => {
-    const win = shellWindow()
-    if (!win || win.isMaximized() || win.isFullScreen()) return
-    const size = on ? EDITOR_WINDOW_SIZE : DEFAULT_WINDOW_SIZE
-    win.setSize(size.width, size.height, true)
   })
 
   // 지정 role 의 창을 연다. 싱글톤 role(shell·library·welcome)은 이미 열려 있으면
@@ -1035,10 +1060,7 @@ function setupTray(): void {
     onShowLauncher: () => showLauncher(),
     onShowWelcome: () => summonWelcome(),
     onOpenRecording: (folder) => {
-      showLauncher()
-      void openRecordingToPreview(folder).catch((err) =>
-        console.error('[tray] 녹화 열기 실패', err)
-      )
+      void openEditorForFolder(folder).catch((err) => console.error('[tray] 녹화 열기 실패', err))
     },
     listRecentRecordings: () => listRecordings(),
     onQuit: () => {

@@ -17,16 +17,14 @@ export const IpcChannel = {
   ListRecordings: 'recordings:list',
   /** 미리보기 첫 프레임 썸네일(JPEG)을 녹화 폴더에 캐시로 저장한다. */
   SaveThumbnail: 'thumbnail:save',
-  /** 저장된 녹화 하나를 다시 열어 미리보기 상태로 복원한다. */
-  OpenRecording: 'recording:open',
+  /** 저장된 녹화를 독립 에디터 창으로 연다(다중 인스턴스, #75). */
+  EditorOpen: 'editor:open',
   /** 익스포트 바이트를 녹화 폴더에 저장한다(포맷에 따라 export.mp4 / export.gif). */
   ExportSave: 'export:save',
   /** 저장된 파일을 Finder에서 연다. */
   ExportReveal: 'export:reveal',
   /** 저장된 파일 경로를 클립보드에 복사한다. */
   ExportCopyPath: 'export:copy-path',
-  /** 편집기 진입/이탈에 맞춰 창 크기를 조절한다(편집기는 넓게, 그 외엔 원래 크기). */
-  SetEditorMode: 'window:editor-mode',
   /** 지정 role 의 창을 연다(이미 열린 싱글톤이면 focus). 새 창의 windowId 를 돌려준다. */
   WindowOpen: 'window:open',
   /** 창 생성 시 main 이 넣어 둔 초기 컨텍스트를 windowId 로 당겨온다(렌더러 부팅 pull). */
@@ -124,27 +122,33 @@ export interface DisplayOverlayContext {
 /** role 'overlay' 창의 초기 컨텍스트 — 렌더러가 `kind` 로 어떤 오버레이인지 분기한다. */
 export type OverlayContext = WindowPickerOverlayContext | AreaOverlayContext | DisplayOverlayContext
 
-/** 녹화 워크플로의 상태 머신. 렌더러는 이 상태만 보고 화면을 그린다. */
+/** 녹화 워크플로의 상태 머신. 렌더러는 이 상태만 보고 화면을 그린다. 전역 `preview` 상태는
+ * 없다(#75) — 녹화 정지 시 main이 저장 후 독립 에디터 창을 자동 생성하고, 전역 상태는 idle로 복귀한다. */
 export type RecordingState =
   | { status: 'idle' }
   /** 캡처 툴바가 떠 대상·모드를 고르는 중(녹화 전). ⌥⌘R/메뉴바 소환으로 진입, Esc/✕로 idle. */
   | { status: 'arming' }
   | { status: 'recording'; startedAt: number; eventCount: number; target: CaptureTarget }
-  | {
-      status: 'preview'
-      /** 원본 미리보기 재생용 URL (recap-media 프로토콜). */
-      videoUrl: string
-      folder: string
-      durationMs: number
-      eventCount: number
-      /** 녹화된 캡처 대상 (전체 화면 또는 특정 창). */
-      target: CaptureTarget
-      /** 자동 효과(줌 구간) 유도의 입력. 렌더러가 이걸로 렌더 레시피를 만든다. */
-      eventTrack: EventTrack
-      /**
-       * 저장된 렌더 레시피(편집 상태). 다시 연 녹화면 이 값으로 복원하고,
-       * 갓 끝난 녹화(또는 레시피 미저장)면 없으므로 렌더러가 이벤트 트랙에서 유도한다.
-       */
-      recipe?: RenderRecipe
-    }
   | { status: 'error'; code: string; message: string }
+
+/**
+ * 에디터 창의 초기 컨텍스트(#75) — main이 `editor:open` 처리 시 창 생성과 함께 넣어 두고,
+ * 렌더러가 `window:get-context`로 당겨온다(pull 모델). 에디터 창은 이 페이로드를 창 로컬
+ * 상태로 소유하며, 전역 캡처 상태를 구독하지 않는다.
+ */
+export interface EditorContext {
+  /** 원본 미리보기 재생용 URL (recap-media 프로토콜). */
+  videoUrl: string
+  folder: string
+  durationMs: number
+  eventCount: number
+  /** 녹화된 캡처 대상 (전체 화면 또는 특정 창). */
+  target: CaptureTarget
+  /** 자동 효과(줌 구간) 유도의 입력. 렌더러가 이걸로 렌더 레시피를 만든다. */
+  eventTrack: EventTrack
+  /**
+   * 저장된 렌더 레시피(편집 상태). 다시 연 녹화면 이 값으로 복원하고,
+   * 갓 끝난 녹화(또는 레시피 미저장)면 없으므로 렌더러가 이벤트 트랙에서 유도한다.
+   */
+  recipe?: RenderRecipe
+}
