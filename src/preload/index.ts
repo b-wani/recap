@@ -9,6 +9,7 @@ import {
 import type { RenderRecipe } from '../shared/recipe'
 import type { ExportFormat } from '../shared/export-preset'
 import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
+import type { WindowRole } from '../shared/window-url'
 
 /** 렌더러에 노출되는 안전한 API 표면. */
 const api = {
@@ -49,6 +50,12 @@ const api = {
   /** 편집기 진입(on=true) 시 창을 넓히고, 이탈(on=false) 시 원래 크기로 되돌린다. */
   setEditorMode: (on: boolean): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.SetEditorMode, on),
+  /** 지정 role 의 창을 연다(싱글톤이면 기존 창 focus). 새/기존 창의 windowId 를 돌려받는다. */
+  openWindow: (role: WindowRole, context?: unknown): Promise<number> =>
+    ipcRenderer.invoke(IpcChannel.WindowOpen, role, context),
+  /** 이 창의 초기 컨텍스트를 windowId 로 당겨온다(부팅 시 role 별 페이로드 로드). */
+  getWindowContext: (id: number): Promise<unknown> =>
+    ipcRenderer.invoke(IpcChannel.WindowGetContext, id),
   /** 온보딩 완료 여부를 조회한다. 앱 시작 시 온보딩/기존 화면 분기에 쓴다. */
   onboardingStatus: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.OnboardingStatus),
   /** 온보딩 완료를 로컬에 저장한다. 마지막 단계 완료 액션에서 호출한다. */

@@ -27,6 +27,10 @@ export const IpcChannel = {
   ExportCopyPath: 'export:copy-path',
   /** 편집기 진입/이탈에 맞춰 창 크기를 조절한다(편집기는 넓게, 그 외엔 원래 크기). */
   SetEditorMode: 'window:editor-mode',
+  /** 지정 role 의 창을 연다(이미 열린 싱글톤이면 focus). 새 창의 windowId 를 돌려준다. */
+  WindowOpen: 'window:open',
+  /** 창 생성 시 main 이 넣어 둔 초기 컨텍스트를 windowId 로 당겨온다(렌더러 부팅 pull). */
+  WindowGetContext: 'window:get-context',
   /** 온보딩 완료 여부를 조회한다(앱 시작 시 렌더러가 온보딩/기존 화면을 분기). */
   OnboardingStatus: 'onboarding:status',
   /** 온보딩 완료를 로컬(userData)에 저장한다(마지막 단계 완료 액션). */

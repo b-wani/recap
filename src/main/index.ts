@@ -19,6 +19,7 @@ import { writeFile } from 'node:fs/promises'
 import { is } from '@electron-toolkit/utils'
 import { Recorder } from './recorder'
 import { AppTray } from './tray'
+import { WindowRegistry, type WindowEntry } from './window-registry'
 import {
   listRecordings,
   loadRecording,
@@ -34,6 +35,7 @@ import {
   type RecordingSummary,
   type ExportSaveResult
 } from '../shared/ipc'
+import { buildWindowHash, type WindowRole } from '../shared/window-url'
 import type { RenderRecipe } from '../shared/recipe'
 import type { ExportFormat } from '../shared/export-preset'
 import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
@@ -48,7 +50,19 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
-let mainWindow: BrowserWindow | null = null
+/**
+ * 열린 창들의 단일 대장. 구 단일 `mainWindow` 전역을 대체한다(#64/#69). main 은
+ * 이 레지스트리로 role 별 창을 지목해 메시지를 보내거나 컨텍스트를 돌려준다. 지금은
+ * `shell`(온보딩·idle·녹화·미리보기를 한 창에서 스왑하는 전환기 통합 창) 하나만 상주하며,
+ * editor(#75)·library(#78)·welcome(#80)·toolbar/overlay(#70~) 티켓이 role 을 채워 나간다.
+ */
+const registry = new WindowRegistry<BrowserWindow>()
+
+/** 현재 상주 shell 창(구 `mainWindow` 대체). 없으면 null. */
+function shellWindow(): BrowserWindow | null {
+  return registry.firstByRole('shell')?.window ?? null
+}
+
 let appTray: AppTray | null = null
 /** 앱 종료 절차 진입 여부. 창 닫기(X)를 '숨김'으로 바꾸되, 실제 종료 시엔 통과시킨다. */
 let isQuitting = false
@@ -96,7 +110,9 @@ const recorder = new Recorder(sidecarPath())
 function applyState(state: RecordingState): void {
   currentState = state
   if (state.status === 'recording') lastTargetId = state.target.id
-  mainWindow?.webContents.send(IpcChannel.State, state)
+  // 지금은 shell 창이 idle/recording/preview/error 를 모두 그리므로 shell 에 보낸다.
+  // #74 에서 캡처 상태 구독 role(툴바·오버레이·트레이·REC 알약)로 타깃 전송을 일반화한다.
+  shellWindow()?.webContents.send(IpcChannel.State, state)
   appTray?.update(state)
   syncWindowForState(state)
 }
@@ -109,7 +125,7 @@ function applyState(state: RecordingState): void {
 function syncWindowForState(state: RecordingState): void {
   switch (state.status) {
     case 'recording':
-      mainWindow?.hide()
+      shellWindow()?.hide()
       break
     case 'preview':
     case 'error':
@@ -120,10 +136,11 @@ function syncWindowForState(state: RecordingState): void {
 
 /** 런처/편집기 창을 표시·포커스한다. 메뉴바 상주 모드에서 창이 뜨는 동안 Dock 도 보인다. */
 function showLauncher(): void {
-  if (!mainWindow) return
+  const win = shellWindow()
+  if (!win) return
   if (process.platform === 'darwin' && app.dock) void app.dock.show()
-  mainWindow.show()
-  mainWindow.focus()
+  win.show()
+  win.focus()
 }
 
 /**
@@ -219,8 +236,9 @@ async function confirmRestart(): Promise<void> {
       'macOS는 권한을 켜도 실행 중인 앱에는 바로 반영되지 않을 수 있어요. ' +
       '지금 재시작하면 방금 허용한 권한이 적용됩니다.'
   }
-  const { response } = mainWindow
-    ? await dialog.showMessageBox(mainWindow, options)
+  const parent = shellWindow()
+  const { response } = parent
+    ? await dialog.showMessageBox(parent, options)
     : await dialog.showMessageBox(options)
   if (response === 0) {
     app.relaunch()
@@ -327,44 +345,102 @@ function notifyExportDone(path: string, format: ExportFormat): void {
   notification.show()
 }
 
-function createWindow(): void {
-  mainWindow = new BrowserWindow({
-    width: DEFAULT_WINDOW_SIZE.width,
-    height: DEFAULT_WINDOW_SIZE.height,
-    minWidth: 720,
-    minHeight: 560,
-    show: false,
-    title: 'Recap',
-    icon: brandIconPath(),
+/**
+ * 렌더러를 창에 싣는다. 부여받은 `windowId`·`role` 을 URL 해시로 실어 보내면
+ * 렌더러가 부팅 시 읽어 자기 정체를 알고, 큰 페이로드는 `window:get-context` 로 당겨온다.
+ */
+function loadRenderer(win: BrowserWindow, id: number, role: WindowRole): void {
+  const hash = buildWindowHash({ id, role })
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    void win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#${hash}`)
+  } else {
+    void win.loadFile(join(__dirname, '../renderer/index.html'), { hash })
+  }
+}
+
+/**
+ * role 별 창 생성의 단일 경로(구 `createWindow` 일반화). 창을 만들고 레지스트리에
+ * 등록해 `windowId` 를 부여하며, 초기 컨텍스트를 실어 두고 파괴 시 자동으로 대장에서 지운다.
+ * 외부 링크는 기본 브라우저로 넘긴다(공통). shell 의 상주(닫기=숨김) 정책은 호출부에서 얹는다.
+ */
+function createRoleWindow(
+  role: WindowRole,
+  options: Electron.BrowserWindowConstructorOptions,
+  context: unknown = null
+): WindowEntry<BrowserWindow> {
+  const win = new BrowserWindow({
+    ...options,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      ...options.webPreferences
     }
   })
 
-  mainWindow.on('ready-to-show', () => mainWindow?.show())
+  const entry = registry.create(role, win, context)
 
-  // 창 닫기(X)는 앱 종료가 아니라 숨김 — 앱은 메뉴바에 상주한다. 종료는 트레이의 '종료'로만.
-  mainWindow.on('close', (e) => {
-    if (isQuitting) return
-    e.preventDefault()
-    mainWindow?.hide()
-  })
-  // 창이 숨으면 Dock 아이콘도 감춰 메뉴바 전용 상태로, 다시 뜨면 보이게 한다.
-  mainWindow.on('hide', () => {
-    if (process.platform === 'darwin' && app.dock) void app.dock.hide()
-  })
+  // 창이 실제로 파괴되면 대장에서 지운다(닫기=숨김인 shell 은 종료 때만 여기 도달).
+  win.on('closed', () => registry.remove(entry.id))
 
-  mainWindow.webContents.setWindowOpenHandler((details) => {
+  win.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+  loadRenderer(win, entry.id, role)
+  return entry
+}
+
+/** 아직 전용 스펙이 없는 role 의 창 기본값(#70~ 각 티켓이 role 별로 대체한다). */
+function defaultWindowOptions(): Electron.BrowserWindowConstructorOptions {
+  return {
+    width: DEFAULT_WINDOW_SIZE.width,
+    height: DEFAULT_WINDOW_SIZE.height,
+    show: true,
+    title: 'Recap',
+    icon: brandIconPath()
   }
+}
+
+/**
+ * 상주 shell 창을 만든다. 온보딩·idle·녹화·미리보기를 한 창에서 스왑하는 전환기 통합 창으로,
+ * 닫기(X)는 종료가 아니라 숨김(메뉴바 상주)이다. 이후 티켓이 이 창의 책임을 role 별로 떼어낸다.
+ */
+function createShellWindow(): WindowEntry<BrowserWindow> {
+  const entry = createRoleWindow(
+    'shell',
+    {
+      width: DEFAULT_WINDOW_SIZE.width,
+      height: DEFAULT_WINDOW_SIZE.height,
+      minWidth: 720,
+      minHeight: 560,
+      show: false,
+      title: 'Recap',
+      icon: brandIconPath()
+    },
+    { role: 'shell' }
+  )
+  const win = entry.window
+
+  win.on('ready-to-show', () => win.show())
+
+  // 창 닫기(X)는 앱 종료가 아니라 숨김 — 앱은 메뉴바에 상주한다. 종료는 트레이의 '종료'로만.
+  win.on('close', (e) => {
+    if (isQuitting) return
+    e.preventDefault()
+    win.hide()
+  })
+  // 창이 숨으면 Dock 아이콘도 감춰 메뉴바 전용 상태로, 다시 뜨면 보이게 한다.
+  win.on('hide', () => {
+    if (process.platform === 'darwin' && app.dock) void app.dock.hide()
+  })
+
+  return entry
+}
+
+/** 상주 shell 창을 보장한다(없으면 생성). 부팅·activate 진입점이 공유한다. */
+function ensureShellWindow(): void {
+  if (!shellWindow()) createShellWindow()
 }
 
 function registerIpc(): void {
@@ -426,11 +502,32 @@ function registerIpc(): void {
   })
 
   // 편집기 진입 시 창을 넓히고 이탈 시 원래 크기로 되돌린다. 최대화 상태면 건드리지 않는다.
+  // (전환기 동안 편집기가 shell 창에 살아 유지 — 폐기는 에디터 창 추출 티켓 #75.)
   ipcMain.handle(IpcChannel.SetEditorMode, (_e, on: boolean) => {
-    if (!mainWindow || mainWindow.isMaximized() || mainWindow.isFullScreen()) return
+    const win = shellWindow()
+    if (!win || win.isMaximized() || win.isFullScreen()) return
     const size = on ? EDITOR_WINDOW_SIZE : DEFAULT_WINDOW_SIZE
-    mainWindow.setSize(size.width, size.height, true)
+    win.setSize(size.width, size.height, true)
   })
+
+  // 지정 role 의 창을 연다. 싱글톤 role(shell·library·welcome)은 이미 열려 있으면
+  // 새로 만들지 않고 기존 창을 표시·포커스한다. 새/기존 창의 windowId 를 돌려준다.
+  ipcMain.handle(IpcChannel.WindowOpen, (_e, role: WindowRole, context: unknown) => {
+    const isSingleton = role === 'shell' || role === 'library' || role === 'welcome'
+    if (isSingleton) {
+      const existing = registry.firstByRole(role)
+      if (existing) {
+        existing.window.show()
+        existing.window.focus()
+        return existing.id
+      }
+    }
+    const entry = role === 'shell' ? createShellWindow() : createRoleWindow(role, defaultWindowOptions(), context)
+    return entry.id
+  })
+
+  // 창 생성 시 넣어 둔 초기 컨텍스트를 windowId 로 돌려준다(렌더러 부팅 pull). 없으면 null.
+  ipcMain.handle(IpcChannel.WindowGetContext, (_e, id: number) => registry.get(id)?.context ?? null)
 
   // 온보딩 완료 여부 조회·저장 (userData에 플래그). 렌더러 최상단 화면 분기가 쓴다.
   ipcMain.handle(IpcChannel.OnboardingStatus, () => isOnboardingComplete(app.getPath('userData')))
@@ -472,12 +569,12 @@ app.whenReady().then(() => {
   })
 
   registerIpc()
-  createWindow()
+  createShellWindow()
   setupTray()
   registerGlobalShortcut()
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) ensureShellWindow()
     else showLauncher()
   })
 })
