@@ -13,12 +13,17 @@ final class MouseTracker {
     private let flipHeight: CGFloat
     /// 캡처 대상의 좌상단 글로벌 좌표(포인트). 전역 좌표에서 이만큼 뺀다.
     private let targetOrigin: CGPoint
+    /// 대상 크기(포인트). nil 이 아니면 이 경계(`[0,w]×[0,h]`) 밖 이벤트는 드롭한다
+    /// (v4 Area — crop 밖에서 벌어진 이벤트는 트랙에 싣지 않는다, #72). display/window는 nil.
+    private let bounds: CGSize?
 
     init(startedAt: TimeInterval,
          targetOrigin: CGPoint,
+         bounds: CGSize? = nil,
          onEvent: @escaping (_ kind: String, _ t: Int, _ x: Double, _ y: Double, _ cursor: String) -> Void) {
         self.startedAt = startedAt
         self.targetOrigin = targetOrigin
+        self.bounds = bounds
         self.onEvent = onEvent
         // NSEvent.mouseLocation은 AppKit 전역(주 화면 좌하단 원점, y가 위로 증가)이고,
         // targetOrigin은 ScreenCaptureKit의 CoreGraphics 전역(주 화면 좌상단 원점, y가 아래로 증가)이다.
@@ -53,6 +58,8 @@ final class MouseTracker {
         let loc = NSEvent.mouseLocation
         let x = loc.x - targetOrigin.x
         let y = (flipHeight - loc.y) - targetOrigin.y
+        // Area(crop) 대상이면 경계 밖 이벤트는 드롭한다 — 이벤트 좌표 계약([0,w]×[0,h])을 지킨다.
+        if let bounds, (x < 0 || y < 0 || x > bounds.width || y > bounds.height) { return }
         let t = Int((Date().timeIntervalSince1970 - startedAt) * 1000)
         // 커서 모양 재현은 효과 층의 관심사이며 전역 시스템 커서 종류를 신뢰성 있게
         // 읽는 API가 없다. 스켈레톤은 arrow로 고정하고, 트랙 스키마는 3종을 담을 수 있게 둔다.

@@ -36,12 +36,16 @@ import {
   type RecordingState,
   type RecordingSummary,
   type ExportSaveResult,
-  type OverlayContext
+  type OverlayContext,
+  type WindowPickerOverlayContext,
+  type AreaOverlayContext,
+  type Rect
 } from '../shared/ipc'
 import { buildWindowHash, type WindowRole } from '../shared/window-url'
 import type { RenderRecipe } from '../shared/recipe'
 import type { ExportFormat } from '../shared/export-preset'
 import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
+import { overlayRectToSourceRect } from '../shared/area-rect'
 
 /** 원본 영상 파일을 렌더러 미리보기에 안전하게 공급하는 커스텀 스킴. */
 const MEDIA_SCHEME = 'recap-media'
@@ -248,9 +252,10 @@ async function confirmRestart(): Promise<void> {
 
 /**
  * 지정 대상의 녹화를 시작한다. IPC(렌더러 버튼) · 트레이 · 전역 단축키가 공유한다.
+ * `sourceRect` 를 주면 Area(영역) crop 녹화(#72) — 사이드카 v4로 그대로 전달된다.
  * 상태 전파는 모두 applyState 를 거쳐 렌더러·트레이·창 표시를 함께 동기화한다.
  */
-async function startRecording(targetId: string): Promise<void> {
+async function startRecording(targetId: string, sourceRect?: Rect): Promise<void> {
   if (recorder.isRecording) return
 
   if (!(await ensureScreenAccess())) {
@@ -267,33 +272,38 @@ async function startRecording(targetId: string): Promise<void> {
   let startedAt = 0
   let target: CaptureTarget
 
-  await recorder.start(targetId, {
-    onReady: (info) => {
-      startedAt = info.startedAt
-      target = info.target
-      applyState({ status: 'recording', startedAt, eventCount: 0, target })
+  await recorder.start(
+    targetId,
+    {
+      onReady: (info) => {
+        startedAt = info.startedAt
+        target = info.target
+        applyState({ status: 'recording', startedAt, eventCount: 0, target })
+      },
+      onEvent: (count) => {
+        const now = Date.now()
+        if (now - lastPush < 400) return
+        lastPush = now
+        applyState({ status: 'recording', startedAt, eventCount: count, target })
+      },
+      onError: (code, message) => {
+        applyState({ status: 'error', code, message })
+      },
+      onComplete: (result) => {
+        applyState({
+          status: 'preview',
+          videoUrl: mediaUrl(result.videoPath),
+          folder: result.folder,
+          durationMs: result.durationMs,
+          eventCount: result.eventCount,
+          target: result.target,
+          eventTrack: result.eventTrack
+        })
+      }
     },
-    onEvent: (count) => {
-      const now = Date.now()
-      if (now - lastPush < 400) return
-      lastPush = now
-      applyState({ status: 'recording', startedAt, eventCount: count, target })
-    },
-    onError: (code, message) => {
-      applyState({ status: 'error', code, message })
-    },
-    onComplete: (result) => {
-      applyState({
-        status: 'preview',
-        videoUrl: mediaUrl(result.videoPath),
-        folder: result.folder,
-        durationMs: result.durationMs,
-        eventCount: result.eventCount,
-        target: result.target,
-        eventTrack: result.eventTrack
-      })
-    }
-  })
+    undefined,
+    sourceRect
+  )
 }
 
 /**
@@ -537,7 +547,8 @@ function createWindowPickerOverlay(): WindowEntry<BrowserWindow> {
   const minY = Math.min(...displays.map((d) => d.bounds.y))
   const maxX = Math.max(...displays.map((d) => d.bounds.x + d.bounds.width))
   const maxY = Math.max(...displays.map((d) => d.bounds.y + d.bounds.height))
-  const context: OverlayContext = {
+  const context: WindowPickerOverlayContext = {
+    kind: 'window-picker',
     screenHeightPt: screen.getPrimaryDisplay().size.height,
     originX: minX,
     originY: minY
@@ -573,6 +584,46 @@ function createWindowPickerOverlay(): WindowEntry<BrowserWindow> {
   return entry
 }
 
+/**
+ * Area 선택 오버레이 창(#72). 주 디스플레이 하나를 정확히 덮는 프레임 없는 투명 창 —
+ * 단일 디스플레이 한정. Window picker 와 달리 클릭스루가 아니다(드래그로 사각형을 그리는
+ * 창이라 모든 마우스 이벤트를 직접 받는다). 확정 rect 는 오버레이 로컬(DIP) 그대로 받아
+ * main 이 전역 sourceRect 로 매핑한다(`confirmAreaSelection`).
+ */
+function createAreaOverlayWindow(display: Electron.Display): WindowEntry<BrowserWindow> {
+  const { bounds } = display
+  const context: AreaOverlayContext = { kind: 'area' }
+  const entry = createRoleWindow(
+    'overlay',
+    {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      frame: false,
+      transparent: true,
+      hasShadow: false,
+      resizable: false,
+      movable: false,
+      fullscreenable: false,
+      skipTaskbar: true,
+      show: false
+    },
+    context
+  )
+  const win = entry.window
+  win.setAlwaysOnTop(true, 'screen-saver')
+  win.setContentProtection(true)
+  if (process.platform === 'darwin') {
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  }
+  win.once('ready-to-show', () => {
+    win.show()
+    win.focus()
+  })
+  return entry
+}
+
 /** 열려 있는 선택 오버레이 창을 모두 파괴한다(모드 전환·취소·확정 공통). */
 function destroyOverlays(): void {
   for (const entry of registry.allByRole('overlay')) entry.window.destroy()
@@ -601,35 +652,43 @@ function cancelArming(): void {
 }
 
 /**
- * 캡처 툴바의 모드 전환을 반영한다(#73). Window 는 선택 오버레이를 띄우고(이미 있으면
- * 그대로 두고), 그 외 모드는 열려 있는 오버레이를 닫는다. Area 는 대상 선택 오버레이
- * (#72)가 아직 없다.
+ * 캡처 툴바의 모드 전환을 반영한다(#73/#72). Window 는 창 선택 오버레이, Area 는
+ * 영역 선택 오버레이(주 디스플레이)를 띄운다 — 같은 종류가 이미 떠 있으면 그대로 두고,
+ * 다른 종류/그 외 모드는 열려 있는 오버레이를 닫는다.
  */
 function setCaptureMode(mode: CaptureMode): void {
-  if (mode === 'window') {
-    if (!registry.firstByRole('overlay')) createWindowPickerOverlay()
-  } else {
-    destroyOverlays()
+  const wanted: OverlayContext['kind'] | null =
+    mode === 'window' ? 'window-picker' : mode === 'area' ? 'area' : null
+  const existing = registry.firstByRole('overlay')
+  const existingKind = (existing?.context as OverlayContext | null)?.kind ?? null
+  if (existingKind === wanted) return
+  destroyOverlays()
+  if (wanted === 'window-picker') createWindowPickerOverlay()
+  else if (wanted === 'area') createAreaOverlayWindow(screen.getPrimaryDisplay())
+}
+
+/** 주 디스플레이(전체 화면) 대상의 id 를 사이드카 목록에서 찾는다. 실패하면 null. */
+async function resolveDisplayTargetId(): Promise<string | null> {
+  try {
+    if (!(await ensureScreenAccess())) throw new Error(PERMISSION_MESSAGE)
+    const targets = await recorder.listTargets()
+    return targets.find((t) => t.kind === 'display')?.id ?? targets[0]?.id ?? null
+  } catch {
+    // 목록 실패(권한 등)는 호출부가 안내한다.
+    return null
   }
 }
 
 /**
  * 캡처 툴바에서 고른 모드로 녹화를 시작한다. Display 는 주 디스플레이를 잡아 바로 녹화한다.
- * Window 는 선택 오버레이(#73)의 클릭 확정(`overlay:select`)이 대신 이 경로를 타지 않고
- * `startRecording` 을 직접 부른다. Area 는 대상 선택 오버레이(#72)가 아직 없어 UI 에서
- * 비활성이라 여기 도달하지 않는다(도달해도 무시). 카운트다운은 렌더러가 처리하고 여기선
- * 즉시 시작한다.
+ * Window 는 선택 오버레이(#73)의 클릭 확정(`overlay:select`)이 이 경로를 타지 않고
+ * `startRecording` 을 직접 부르고, Area 는 오버레이의 확정(Start/Enter)이
+ * `confirmAreaSelection`(#72)을 거치므로 둘 다 여기 도달하지 않는다(도달해도 무시).
+ * 카운트다운은 렌더러가 처리하고 여기선 즉시 시작한다.
  */
 async function startFromToolbar(mode: CaptureMode): Promise<void> {
   if (mode !== 'display') return
-  let targetId: string | null = null
-  try {
-    if (!(await ensureScreenAccess())) throw new Error(PERMISSION_MESSAGE)
-    const targets = await recorder.listTargets()
-    targetId = targets.find((t) => t.kind === 'display')?.id ?? targets[0]?.id ?? null
-  } catch {
-    // 목록 실패(권한 등)는 아래 분기에서 안내한다.
-  }
+  const targetId = await resolveDisplayTargetId()
   destroyToolbars()
   if (targetId) void startRecording(targetId)
   else applyState({ status: 'error', code: 'no-display', message: PERMISSION_MESSAGE })
@@ -643,6 +702,26 @@ function selectWindowTarget(targetId: string): void {
   destroyToolbars()
   destroyOverlays()
   void startRecording(targetId)
+}
+
+/**
+ * Area 오버레이에서 확정한 로컬 rect(DIP, 좌상단 원점)로 crop 녹화를 시작한다(#72).
+ * 오버레이는 정확히 그 디스플레이 전체를 덮으므로 오버레이 창의 `getBounds()` 원점이
+ * 곧 `+display.bounds.origin` 단계이고, 주 디스플레이 높이로 AppKit y 를 뒤집으면
+ * 사이드카가 기대하는 `sourceRect`(전역 AppKit 좌표)가 된다.
+ */
+async function confirmAreaSelection(localRect: Rect): Promise<void> {
+  const overlay = registry.firstByRole('overlay')
+  if (!overlay || (overlay.context as OverlayContext | null)?.kind !== 'area') return
+  const overlayBounds = overlay.window.getBounds()
+  const flipHeight = screen.getPrimaryDisplay().bounds.height
+  const sourceRect = overlayRectToSourceRect(localRect, overlayBounds, flipHeight)
+
+  const targetId = await resolveDisplayTargetId()
+  destroyToolbars()
+  destroyOverlays()
+  if (targetId) void startRecording(targetId, sourceRect)
+  else applyState({ status: 'error', code: 'no-display', message: PERMISSION_MESSAGE })
 }
 
 function registerIpc(): void {
@@ -749,6 +828,9 @@ function registerIpc(): void {
     win?.setIgnoreMouseEvents(!hovering, hovering ? undefined : { forward: true })
   })
   ipcMain.handle(IpcChannel.OverlaySelect, (_e, targetId: string) => selectWindowTarget(targetId))
+
+  // Area 오버레이(#72) 확정 — 로컬 rect 를 전역 sourceRect 로 매핑해 crop 녹화를 시작한다.
+  ipcMain.handle(IpcChannel.CaptureAreaConfirm, (_e, rect: Rect) => confirmAreaSelection(rect))
 
   // 완료 시 플래그를 저장하고 Welcome 창을 닫은 뒤(#80), shell 창을 보인다(없으면 새로 만든다).
   ipcMain.handle(IpcChannel.OnboardingComplete, async () => {

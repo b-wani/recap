@@ -5,7 +5,8 @@ import {
   type CaptureMode,
   type RecordingState,
   type RecordingSummary,
-  type ExportSaveResult
+  type ExportSaveResult,
+  type Rect
 } from '../shared/ipc'
 import type { RenderRecipe } from '../shared/recipe'
 import type { ExportFormat } from '../shared/export-preset'
@@ -62,9 +63,12 @@ const api = {
     ipcRenderer.invoke(IpcChannel.CaptureStart, mode),
   /** arming 취소 — 툴바를 닫고 idle 로. */
   captureCancel: (): Promise<void> => ipcRenderer.invoke(IpcChannel.CaptureCancel),
-  /** 캡처 모드 전환을 알린다(Window 는 선택 오버레이 생성, 그 외는 파괴). */
+  /** 캡처 모드 전환을 알린다(Window/Area 는 해당 선택 오버레이 생성, 그 외는 파괴). */
   captureSetMode: (mode: CaptureMode): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.CaptureSetMode, mode),
+  /** Area 오버레이에서 확정한 로컬 rect 로 crop 녹화를 시작한다. */
+  captureAreaConfirm: (rect: Rect): Promise<void> =>
+    ipcRenderer.invoke(IpcChannel.CaptureAreaConfirm, rect),
   /** Window 선택 오버레이의 호버 상태 변화를 알린다(창 위=클릭 캡처, 빈 데스크톱=클릭스루). */
   overlayHover: (hovering: boolean): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.OverlayHover, hovering),

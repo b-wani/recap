@@ -58,8 +58,12 @@ final class Session {
     private func onReady(_ target: ResolvedTarget) {
         ready = true
         let startedAt = Date().timeIntervalSince1970
+        // Area(crop) 대상이면 경계를 넘겨 밖 이벤트를 드롭한다(#72). display/window는 nil(무제한).
+        let bounds: CGSize? = target.cropRect != nil
+            ? CGSize(width: CGFloat(target.width), height: CGFloat(target.height)) : nil
         let tracker = MouseTracker(startedAt: startedAt,
-                                   targetOrigin: target.origin) { [weak self] kind, t, x, y, cursor in
+                                   targetOrigin: target.origin,
+                                   bounds: bounds) { [weak self] kind, t, x, y, cursor in
             guard let self else { return }
             self.eventCount += 1
             Emitter.event(kind: kind, t: t, x: x, y: y, cursor: cursor)

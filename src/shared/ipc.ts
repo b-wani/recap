@@ -1,9 +1,9 @@
 /** 본체 ↔ 렌더러 IPC 계약. 채널 이름과 상태 모양을 양쪽이 공유한다. */
 
-import type { CaptureTarget, EventTrack } from './event-track'
+import type { CaptureTarget, EventTrack, Rect } from './event-track'
 import type { RenderRecipe } from './recipe'
 
-export type { CaptureTarget }
+export type { CaptureTarget, Rect }
 
 export const IpcChannel = {
   /** 선택 가능한 캡처 대상(전체 화면 + 열린 창) 목록을 조회한다. */
@@ -35,12 +35,14 @@ export const IpcChannel = {
   CaptureStart: 'capture:start',
   /** arming 취소 — 캡처 툴바·오버레이를 닫고 idle 로 되돌린다(Esc/✕). */
   CaptureCancel: 'capture:cancel',
-  /** 캡처 모드 전환을 알린다 — Window 는 선택 오버레이를 띄우고, 그 외는 오버레이를 닫는다(#73). */
+  /** 캡처 모드 전환을 알린다 — Window/Area 는 해당 선택 오버레이를 띄우고, 그 외는 닫는다(#73/#72). */
   CaptureSetMode: 'capture:set-mode',
   /** Window 선택 오버레이의 호버 상태 변화 — main 이 오버레이 창의 클릭스루 여부를 토글한다(#73). */
   OverlayHover: 'overlay:hover',
   /** Window 선택 오버레이에서 창을 클릭해 확정 — 그 대상으로 녹화를 시작한다(#73). */
   OverlaySelect: 'overlay:select',
+  /** Area 오버레이에서 확정한 로컬 rect 로 crop 녹화를 시작한다(#72). */
+  CaptureAreaConfirm: 'capture:area-confirm',
   /** 온보딩 완료를 로컬(userData)에 저장한다(마지막 단계 완료 액션). */
   OnboardingComplete: 'onboarding:complete',
   /** 화면 녹화·손쉬운 사용 권한의 granted 여부를 조회한다(온보딩 권한 단계 폴링). */
@@ -82,11 +84,24 @@ export type CaptureMode = 'display' | 'window' | 'area'
  * flipped 좌표(Electron 화면 좌표)를 오버레이 로컬 DOM 좌표로 옮기려면 자신의 전역
  * 원점(originX/Y)을 알아야 한다. screenHeightPt는 flip 환산의 기준(주 디스플레이 높이).
  */
-export interface OverlayContext {
+export interface WindowPickerOverlayContext {
+  kind: 'window-picker'
   screenHeightPt: number
   originX: number
   originY: number
 }
+
+/**
+ * Area 선택 오버레이 창의 초기 컨텍스트(#72). 오버레이는 주 디스플레이 하나를 정확히
+ * 덮는 창이고 확정 rect 는 오버레이 로컬(DIP) 그대로 main 에 넘기므로(전역 매핑은 main
+ * 책임) 판별자 외 페이로드가 없다.
+ */
+export interface AreaOverlayContext {
+  kind: 'area'
+}
+
+/** role 'overlay' 창의 초기 컨텍스트 — 렌더러가 `kind` 로 어떤 오버레이인지 분기한다. */
+export type OverlayContext = WindowPickerOverlayContext | AreaOverlayContext
 
 /** 녹화 워크플로의 상태 머신. 렌더러는 이 상태만 보고 화면을 그린다. */
 export type RecordingState =

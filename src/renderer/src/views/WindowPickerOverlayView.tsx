@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { CaptureTarget, OverlayContext } from '../../../shared/ipc'
+import type { CaptureTarget, WindowPickerOverlayContext } from '../../../shared/ipc'
 import { flipRect, hitTestWindowAt } from '../../../shared/window-picker'
 
 interface HighlightRect {
@@ -17,13 +17,13 @@ interface HighlightRect {
  * `overlay:select`로 확정한다 — 그래서 빈 데스크톱 클릭은 아래로 흘러 사실상 무시된다(#73).
  */
 export function WindowPickerOverlayView({ windowId }: { windowId: number }): JSX.Element {
-  const [context, setContext] = useState<OverlayContext | null>(null)
+  const [context, setContext] = useState<WindowPickerOverlayContext | null>(null)
   const [targets, setTargets] = useState<CaptureTarget[]>([])
   const [hover, setHover] = useState<{ target: CaptureTarget; rect: HighlightRect } | null>(null)
   const hoveringRef = useRef(false)
 
   useEffect(() => {
-    void window.recap.getWindowContext(windowId).then((c) => setContext(c as OverlayContext))
+    void window.recap.getWindowContext(windowId).then((c) => setContext(c as WindowPickerOverlayContext))
     void window.recap.listTargets().then(setTargets)
   }, [windowId])
 

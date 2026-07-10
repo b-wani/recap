@@ -66,3 +66,45 @@ describe('Recorder.listTargets', () => {
     expect(await spawnCount()).toBe(2)
   })
 })
+
+describe('Recorder.start — Area sourceRect 전달(#72)', () => {
+  const noopCallbacks = {
+    onReady: () => {},
+    onEvent: () => {},
+    onError: () => {},
+    onComplete: () => {}
+  }
+
+  async function fakeRecordSidecar(): Promise<{ path: string; argsLog: string }> {
+    const path = join(dir, 'fake-record.sh')
+    const argsLog = join(dir, 'record-args.log')
+    // 받은 인자를 그대로 로그에 남기고 바로 종료하는 가짜 사이드카(스트림은 흘리지 않는다 —
+    // 이 테스트는 spawn 인자만 확인하면 된다).
+    await writeFile(path, `#!/bin/sh\necho "$@" >> "${argsLog}"\n`, 'utf8')
+    await chmod(path, 0o755)
+    return { path, argsLog }
+  }
+
+  it('sourceRect 를 주면 --sourceRect x,y,w,h 인자로 넘긴다', async () => {
+    const { path, argsLog } = await fakeRecordSidecar()
+    const recorder = new Recorder(path)
+    await recorder.start('display:1', noopCallbacks, new Date(), {
+      x: 10,
+      y: 20,
+      width: 300,
+      height: 400
+    })
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const log = await readFile(argsLog, 'utf8')
+    expect(log).toContain('--sourceRect 10,20,300,400')
+  })
+
+  it('sourceRect 가 없으면 --sourceRect 인자를 넘기지 않는다', async () => {
+    const { path, argsLog } = await fakeRecordSidecar()
+    const recorder = new Recorder(path)
+    await recorder.start('display:1', noopCallbacks)
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    const log = await readFile(argsLog, 'utf8')
+    expect(log).not.toContain('--sourceRect')
+  })
+})

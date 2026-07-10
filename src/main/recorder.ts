@@ -9,7 +9,7 @@ import {
   type CaptureTarget,
   type SidecarMessage
 } from './sidecar/protocol'
-import type { EventTrack } from '../shared/event-track'
+import type { EventTrack, Rect } from '../shared/event-track'
 import { recordingsBaseDir, writeManifest, MANIFEST_VERSION } from './storage'
 
 /**
@@ -113,8 +113,17 @@ export class Recorder {
     })
   }
 
-  /** 사이드카를 띄우고 지정한 대상(전체 화면 또는 특정 창)의 녹화를 시작한다. */
-  async start(targetId: string, cb: RecorderCallbacks, now = new Date()): Promise<void> {
+  /**
+   * 사이드카를 띄우고 지정한 대상(전체 화면 또는 특정 창)의 녹화를 시작한다.
+   * `sourceRect` 를 주면 Area(영역) 녹화 — 전역 AppKit 좌표(좌하단 원점, 포인트)를
+   * `--sourceRect x,y,w,h` 로 사이드카에 넘긴다(v4).
+   */
+  async start(
+    targetId: string,
+    cb: RecorderCallbacks,
+    now = new Date(),
+    sourceRect?: Rect
+  ): Promise<void> {
     // child 할당 전(mkdir await 중)의 중복 호출도 막는다 — record 사이드카가 동시에
     // 2개 뜨면 listTargets와 같은 replayd 경합으로 매달린다.
     if (this.isRecording) throw new Error('이미 녹화 중입니다')
@@ -128,7 +137,11 @@ export class Recorder {
       this.folder = join(recordingsBaseDir(), timestampFolderName(now))
       await mkdir(this.folder, { recursive: true })
 
-      child = spawn(this.sidecarPath, ['record', '--out', this.folder, '--target', targetId], {
+      const args = ['record', '--out', this.folder, '--target', targetId]
+      if (sourceRect) {
+        args.push('--sourceRect', `${sourceRect.x},${sourceRect.y},${sourceRect.width},${sourceRect.height}`)
+      }
+      child = spawn(this.sidecarPath, args, {
         stdio: ['pipe', 'pipe', 'pipe']
       })
       this.child = child

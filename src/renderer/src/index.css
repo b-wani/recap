@@ -1209,12 +1209,6 @@ body {
   white-space: nowrap;
 }
 
-.toolbar-soon {
-  color: var(--text-3);
-  font-size: var(--text-sm);
-  padding: 0 var(--space-2);
-}
-
 .toolbar-hint {
   color: var(--text-2);
   font-size: var(--text-sm);
@@ -1273,7 +1267,6 @@ body {
   color: var(--text-3);
 }
 
-<<<<<<< HEAD
 /* ── Welcome 창 셸 (#80) — 마스코트 히어로 + 챕터 내비 + 본문 패널 + 하단 바 ─── */
 .welcome {
   display: flex;
@@ -1460,4 +1453,103 @@ body {
   font-size: var(--text-sm);
   border-radius: var(--radius-pill);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Area 선택 오버레이 (#72) — 주 디스플레이를 덮는 투명 창 ────────────────── */
+
+.area-overlay {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  cursor: crosshair;
+  background: transparent;
+}
+
+.area-rect {
+  position: absolute;
+  border: 2px solid var(--grass);
+  border-radius: 2px;
+  /* 사각형 밖 전체를 딤 처리한다 — 거대한 box-shadow 가 사각형 바깥만 덮고
+     border-box 안쪽(사각형 내부)은 그대로 투명해 딤이 걷힌 것처럼 보인다. */
+  box-shadow: 0 0 0 9999px rgba(12, 20, 10, 0.55);
+  cursor: move;
+}
+
+.area-size-badge {
+  position: absolute;
+  top: -30px;
+  left: 0;
+  padding: 2px var(--space-2);
+  background: var(--surface-2);
+  border-radius: var(--radius-s);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xs);
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.area-start {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  white-space: nowrap;
+}
+
+.area-cancel {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+}
+
+.area-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px;
+  background: var(--grass);
+  border: 1px solid var(--grass-ink);
+  border-radius: 2px;
+}
+
+.area-handle-nw {
+  top: 0;
+  left: 0;
+  cursor: nwse-resize;
+}
+.area-handle-n {
+  top: 0;
+  left: 50%;
+  cursor: ns-resize;
+}
+.area-handle-ne {
+  top: 0;
+  left: 100%;
+  cursor: nesw-resize;
+}
+.area-handle-e {
+  top: 50%;
+  left: 100%;
+  cursor: ew-resize;
+}
+.area-handle-se {
+  top: 100%;
+  left: 100%;
+  cursor: nwse-resize;
+}
+.area-handle-s {
+  top: 100%;
+  left: 50%;
+  cursor: ns-resize;
+}
+.area-handle-sw {
+  top: 100%;
+  left: 0;
+  cursor: nesw-resize;
+}
+.area-handle-w {
+  top: 50%;
+  left: 0;
+  cursor: ew-resize;
 }

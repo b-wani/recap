@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { RecordingState } from '../../shared/ipc'
+import type { OverlayContext, RecordingState } from '../../shared/ipc'
 import { parseWindowHash } from '../../shared/window-url'
 import { IdleView } from './views/IdleView'
 import { RecordingView } from './views/RecordingView'
@@ -9,6 +9,7 @@ import { WelcomeView } from './views/WelcomeView'
 import { PlaceholderView } from './views/PlaceholderView'
 import { ToolbarView } from './views/ToolbarView'
 import { WindowPickerOverlayView } from './views/WindowPickerOverlayView'
+import { AreaOverlayView } from './views/AreaOverlayView'
 
 export default function App(): JSX.Element {
   // 이 창의 정체(id·role) — main 이 URL 해시로 실어 준다(#69). 없으면(구 진입 경로 등)
@@ -39,9 +40,13 @@ export default function App(): JSX.Element {
     return <WelcomeView />
   }
 
-  // Window 선택 오버레이(#73) — 가상 데스크톱 전체를 덮는 딤 창이라 .app 크롬 없이 그린다.
+  // 선택 오버레이 창 — 컨텍스트의 kind 로 Window picker(#73)/Area(#72)를 분기한다.
+  // 화면 전체를 덮는 딤 창이라 .app 크롬 없이 그린다. 컨텍스트 도착 전엔 아무것도 안 그린다.
   if (role === 'overlay' && params) {
-    return <WindowPickerOverlayView windowId={params.id} />
+    const kind = (context as OverlayContext | null)?.kind
+    if (kind === 'area') return <AreaOverlayView />
+    if (kind === 'window-picker') return <WindowPickerOverlayView windowId={params.id} />
+    return <></>
   }
 
   // 그 밖의 아직 전용 화면이 없는 role 창은 자리표시자로 골격이 닿았음을 보인다.
