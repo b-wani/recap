@@ -53,7 +53,13 @@ export const IpcChannel = {
   /** 지정한 권한 종류의 시스템 설정 패널을 연다(화면 녹화는 열기 전 TCC 목록 등록). */
   OpenPermissionSettings: 'permissions:open-settings',
   /** 권한 적용을 위한 재시작 확인 다이얼로그를 띄우고, 수락 시 앱을 재시작한다. */
-  ConfirmRestart: 'app:confirm-restart'
+  ConfirmRestart: 'app:confirm-restart',
+  /** 현재 레시피의 스타일(배경/커서)을 이름 붙여 앱 전역 프리셋으로 저장한다(#77). */
+  PresetSave: 'presets:save',
+  /** 저장된 스타일 프리셋 목록을 가져온다(#77). */
+  PresetList: 'presets:list',
+  /** 스타일 프리셋을 삭제한다(#77). */
+  PresetDelete: 'presets:delete'
 } as const
 
 /** 최근 녹화 목록의 한 항목 — 다시 열기 UI가 그린다. */

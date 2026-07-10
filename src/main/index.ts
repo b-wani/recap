@@ -17,6 +17,7 @@ import {
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { writeFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
 import { is } from '@electron-toolkit/utils'
 import { Recorder, type RecordingResult } from './recorder'
 import { AppTray } from './tray'
@@ -29,7 +30,10 @@ import {
   saveRecipe,
   saveThumbnail,
   isOnboardingComplete,
-  saveOnboardingComplete
+  saveOnboardingComplete,
+  listStylePresets,
+  saveStylePreset,
+  deleteStylePreset
 } from './storage'
 import {
   IpcChannel,
@@ -47,6 +51,7 @@ import {
 } from '../shared/ipc'
 import { buildWindowHash, type WindowRole } from '../shared/window-url'
 import type { RenderRecipe } from '../shared/recipe'
+import { extractStylePreset, type StylePreset } from '../shared/style-preset'
 import type { ExportFormat } from '../shared/export-preset'
 import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
 import { overlayRectToSourceRect } from '../shared/area-rect'
@@ -1055,6 +1060,25 @@ function registerIpc(): void {
     openPermissionSettings(kind)
   )
   ipcMain.handle(IpcChannel.ConfirmRestart, () => confirmRestart())
+
+  // 경량 스타일 프리셋(#77): 현재 레시피의 배경/커서 스타일만 골라 앱 전역(userData)에
+  // 저장·목록·삭제한다. 적용은 렌더러가 목록에서 받은 프리셋으로 로컬 recipe를 직접
+  // 바꾸므로(순수 함수 applyStylePreset) 여기엔 별도 채널이 없다.
+  ipcMain.handle(
+    IpcChannel.PresetSave,
+    async (_e, name: string, recipe: RenderRecipe): Promise<StylePreset> => {
+      const preset = extractStylePreset(recipe, name, randomUUID())
+      await saveStylePreset(app.getPath('userData'), preset)
+      return preset
+    }
+  )
+  ipcMain.handle(
+    IpcChannel.PresetList,
+    (): Promise<StylePreset[]> => listStylePresets(app.getPath('userData'))
+  )
+  ipcMain.handle(IpcChannel.PresetDelete, (_e, id: string) =>
+    deleteStylePreset(app.getPath('userData'), id)
+  )
 }
 
 // dev 모드에서도 메뉴바·Dock·창 타이틀이 제품명으로 뜨도록 앱 이름을 고정한다

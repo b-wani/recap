@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   CURSOR_DEFAULTS,
   GRADIENT_PRESETS,
@@ -6,6 +7,7 @@ import {
   type RenderRecipe
 } from '../../../shared/recipe'
 import { setZoomSegmentScale } from '../../../shared/recipe.edit'
+import type { StylePreset } from '../../../shared/style-preset'
 
 /**
  * 우측 설정 사이드바 — 단일 스크롤 패널. 선택 상태에 따라 두 모드로 그린다:
@@ -24,7 +26,11 @@ export function Sidebar({
   selected,
   onDeleteSegment,
   eventCount,
-  folder
+  folder,
+  presets,
+  onSavePreset,
+  onApplyPreset,
+  onDeletePreset
 }: {
   recipe: RenderRecipe
   update: (fn: (r: RenderRecipe) => RenderRecipe) => void
@@ -32,7 +38,13 @@ export function Sidebar({
   onDeleteSegment: (index: number) => void
   eventCount: number
   folder: string
+  /** 앱 전역 스타일 프리셋 목록(배경/커서 스타일 번들, #77). 줌·트림 등은 담지 않는다. */
+  presets: StylePreset[]
+  onSavePreset: (name: string) => void
+  onApplyPreset: (preset: StylePreset) => void
+  onDeletePreset: (id: string) => void
 }): JSX.Element {
+  const [presetName, setPresetName] = useState('')
   const segment = selected !== null ? recipe.zoomSegments[selected] : undefined
 
   // 컨텍스트 패널 — 줌 구간 편집 (배율 · 삭제).
@@ -244,6 +256,54 @@ export function Sidebar({
           />
           <span>키 입력 오버레이</span>
         </label>
+      </fieldset>
+
+      {/* ④ 스타일 프리셋 — 배경/커서 스타일 번들만(줌·트림 등 녹화별 편집은 담지 않는다, #77) */}
+      <fieldset className="side-section">
+        <legend className="side-section-title">스타일 프리셋</legend>
+        <div className="control control-row preset-save">
+          <input
+            type="text"
+            className="control-text"
+            placeholder="프리셋 이름"
+            value={presetName}
+            onChange={(e) => setPresetName(e.target.value)}
+          />
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={presetName.trim().length === 0}
+            onClick={() => {
+              onSavePreset(presetName.trim())
+              setPresetName('')
+            }}
+          >
+            저장
+          </button>
+        </div>
+        {presets.length === 0 ? (
+          <p className="side-hint">저장된 프리셋이 없습니다. 현재 스타일을 이름 붙여 저장해보세요.</p>
+        ) : (
+          <ul className="preset-list">
+            {presets.map((p) => (
+              <li key={p.id} className="preset-item">
+                <span className="preset-name">{p.name}</span>
+                <div className="preset-actions">
+                  <button type="button" className="btn btn-sm" onClick={() => onApplyPreset(p)}>
+                    적용
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-danger"
+                    onClick={() => onDeletePreset(p.id)}
+                  >
+                    삭제
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </fieldset>
 
       {/* 메타 정보 */}

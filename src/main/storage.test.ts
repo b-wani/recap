@@ -9,12 +9,16 @@ import {
   loadRecording,
   saveOnboardingComplete,
   isOnboardingComplete,
+  listStylePresets,
+  saveStylePreset,
+  deleteStylePreset,
   MANIFEST_VERSION,
   type RecordingManifest
 } from './storage'
 import type { EventTrack } from '../shared/event-track'
 import type { RenderRecipe } from '../shared/recipe'
 import { sampleRecipe } from '../shared/recipe'
+import type { StylePreset } from '../shared/style-preset'
 
 const eventTrack: EventTrack = {
   protocolVersion: 1,
@@ -139,5 +143,56 @@ describe('온보딩 완료 플래그: userData 저장·로드', () => {
   it('플래그 파일이 손상되면 미완료로 본다', async () => {
     await writeFile(join(base, 'onboarding.json'), 'not json', 'utf8')
     expect(await isOnboardingComplete(base)).toBe(false)
+  })
+})
+
+describe('스타일 프리셋: userData 저장·목록·삭제', () => {
+  const preset: StylePreset = {
+    id: 'preset-1',
+    name: '슬레이트',
+    background: {
+      type: 'gradient',
+      color: '#1c1c1e',
+      gradient: { angle: 145, stops: ['#2b2b30', '#161618'] },
+      padding: 0.08,
+      cornerRadius: 12,
+      shadow: 0.45
+    },
+    cursor: { size: 1, smoothingMs: 120 }
+  }
+
+  it('저장 전에는 빈 목록이다(파일 없음)', async () => {
+    expect(await listStylePresets(base)).toEqual([])
+  })
+
+  it('저장하면 목록에 남고, 앱 재시작(재조회)에도 유지된다', async () => {
+    await saveStylePreset(base, preset)
+    expect(await listStylePresets(base)).toEqual([preset])
+  })
+
+  it('같은 id로 다시 저장하면 갱신된다(추가되지 않음)', async () => {
+    await saveStylePreset(base, preset)
+    const renamed = { ...preset, name: '슬레이트 v2' }
+    await saveStylePreset(base, renamed)
+    expect(await listStylePresets(base)).toEqual([renamed])
+  })
+
+  it('다른 id로 저장하면 목록에 함께 쌓인다', async () => {
+    await saveStylePreset(base, preset)
+    const other: StylePreset = { ...preset, id: 'preset-2', name: '그래파이트' }
+    await saveStylePreset(base, other)
+    const list = await listStylePresets(base)
+    expect(list.map((p) => p.id).sort()).toEqual(['preset-1', 'preset-2'])
+  })
+
+  it('삭제하면 목록에서 빠진다', async () => {
+    await saveStylePreset(base, preset)
+    await deleteStylePreset(base, preset.id)
+    expect(await listStylePresets(base)).toEqual([])
+  })
+
+  it('파일이 손상되면 빈 목록으로 본다', async () => {
+    await writeFile(join(base, 'style-presets.json'), 'not json', 'utf8')
+    expect(await listStylePresets(base)).toEqual([])
   })
 })

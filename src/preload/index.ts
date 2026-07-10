@@ -9,6 +9,7 @@ import {
   type Rect
 } from '../shared/ipc'
 import type { RenderRecipe } from '../shared/recipe'
+import type { StylePreset } from '../shared/style-preset'
 import type { ExportFormat } from '../shared/export-preset'
 import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
 import type { WindowRole } from '../shared/window-url'
@@ -84,7 +85,14 @@ const api = {
   openPermissionSettings: (kind: PermissionKind): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.OpenPermissionSettings, kind),
   /** 재시작 확인 다이얼로그를 띄우고, 수락 시 앱을 재시작한다. */
-  confirmRestart: (): Promise<void> => ipcRenderer.invoke(IpcChannel.ConfirmRestart)
+  confirmRestart: (): Promise<void> => ipcRenderer.invoke(IpcChannel.ConfirmRestart),
+  /** 현재 레시피의 스타일(배경/커서)을 이름 붙여 앱 전역 프리셋으로 저장한다. 저장된 프리셋(id 포함)을 돌려받는다. */
+  savePreset: (name: string, recipe: RenderRecipe): Promise<StylePreset> =>
+    ipcRenderer.invoke(IpcChannel.PresetSave, name, recipe),
+  /** 저장된 스타일 프리셋 목록을 가져온다. */
+  listPresets: (): Promise<StylePreset[]> => ipcRenderer.invoke(IpcChannel.PresetList),
+  /** 스타일 프리셋을 삭제한다. */
+  deletePreset: (id: string): Promise<void> => ipcRenderer.invoke(IpcChannel.PresetDelete, id)
 }
 
 contextBridge.exposeInMainWorld('recap', api)
