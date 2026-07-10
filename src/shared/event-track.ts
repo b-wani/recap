@@ -15,6 +15,17 @@ export type MouseEventKind = 'move' | 'down' | 'up'
 export type CaptureTargetKind = 'display' | 'window'
 
 /**
+ * 사각형(포인트). 좌표 원점 규약은 쓰이는 필드(CaptureTarget.frame·sourceRect)의
+ * 설명을 따른다 — 두 필드 모두 전역 좌표지만 y 원점 규약이 다르다.
+ */
+export interface Rect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
  * 녹화 대상 후보. 사이드카 `list` 명령이 열거하고, 본체는 이 중 하나의 `id`를 골라
  * `record --target <id>`로 넘긴다. width·height는 대상의 논리 크기(포인트)이며,
  * 이벤트 좌표가 놓이는 좌표 공간의 경계다 (좌상단 원점).
@@ -29,6 +40,18 @@ export interface CaptureTarget {
   width: number
   /** 대상 높이 (포인트). 이벤트 y 좌표의 상한. */
   height: number
+  /**
+   * 창 프레임 — 전역 AppKit 좌표(좌하단 원점, 포인트). `window` 대상만 싣는다.
+   * Window 선택 오버레이가 커서 아래 창 프레임을 그리는 데 쓴다. 사이드카 v4(프로토콜 4)가
+   * 채우며, display 대상과 이전 버전 호환을 위해 선택적이다. 이벤트 좌표 계약과는 무관하다.
+   */
+  frame?: Rect
+  /**
+   * Area crop 원본 사각형 — 전역 좌표(포인트). Area 캡처일 때만 싣는다. 이때 부모 `kind`는
+   * 여전히 `display`이고 width/height는 crop 크기로 접혀 있다 — 다운스트림은 kind 분기를
+   * 늘리지 않고 좌표 공간 크기만 crop 크기로 본다. 사이드카 v4(프로토콜 4)가 채운다.
+   */
+  sourceRect?: Rect
 }
 
 /** 마우스 이벤트 하나 — 이벤트 트랙의 원소. */

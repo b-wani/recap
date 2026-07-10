@@ -1,4 +1,4 @@
-{"type":"ready","protocolVersion":3,"rawVideoPath":"/Users/dev/Movies/Recap/2026-07-05_1530/raw.mp4","startedAt":1751710200000,"target":{"kind":"window","id":"window:47","title":"Safari — GitHub","width":1200,"height":800}}
+{"type":"ready","protocolVersion":4,"rawVideoPath":"/Users/dev/Movies/Recap/2026-07-05_1530/raw.mp4","startedAt":1751710200000,"target":{"kind":"window","id":"window:47","title":"Safari — GitHub","width":1200,"height":800,"frame":{"x":100,"y":80,"width":1200,"height":800}}}
 {"type":"event","kind":"move","t":120,"x":400,"y":300,"cursor":"arrow"}
 {"type":"event","kind":"move","t":240,"x":420,"y":310,"cursor":"pointer"}
 {"type":"event","kind":"down","t":300,"x":420,"y":310,"cursor":"pointer"}

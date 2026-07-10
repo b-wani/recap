@@ -4,7 +4,7 @@ import Foundation
 /// 본체 쪽 계약은 src/main/sidecar/protocol.ts, 문서는 docs/sidecar-protocol.md.
 /// 여기에는 효과 로직이 없다 — 메시지를 stdout에 JSONL로 흘리기만 한다.
 enum Protocol {
-    static let version = 3
+    static let version = 4
 }
 
 /// stdout에 JSONL 한 줄을 원자적으로 쓴다. 표준출력은 이벤트 스트림 전용이므로
