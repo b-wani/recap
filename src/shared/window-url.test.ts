@@ -9,8 +9,8 @@ describe('window-url', () => {
   })
 
   it('선행 # 가 있어도 파싱한다', () => {
-    const hash = buildWindowHash({ id: 3, role: 'shell' })
-    expect(parseWindowHash(`#${hash}`)).toEqual({ id: 3, role: 'shell' })
+    const hash = buildWindowHash({ id: 3, role: 'library' })
+    expect(parseWindowHash(`#${hash}`)).toEqual({ id: 3, role: 'library' })
   })
 
   it('빈 해시는 null', () => {
@@ -28,14 +28,14 @@ describe('window-url', () => {
   })
 
   it('id 가 양의 정수가 아니면 null', () => {
-    expect(parseWindowHash('id=0&role=shell')).toBeNull()
-    expect(parseWindowHash('id=-1&role=shell')).toBeNull()
-    expect(parseWindowHash('id=1.5&role=shell')).toBeNull()
-    expect(parseWindowHash('id=abc&role=shell')).toBeNull()
+    expect(parseWindowHash('id=0&role=editor')).toBeNull()
+    expect(parseWindowHash('id=-1&role=editor')).toBeNull()
+    expect(parseWindowHash('id=1.5&role=editor')).toBeNull()
+    expect(parseWindowHash('id=abc&role=editor')).toBeNull()
   })
 
   it('모든 role 을 왕복한다', () => {
-    for (const role of ['shell', 'toolbar', 'overlay', 'editor', 'library', 'welcome'] as const) {
+    for (const role of ['toolbar', 'overlay', 'rec-pill', 'editor', 'library', 'welcome'] as const) {
       expect(parseWindowHash(buildWindowHash({ id: 1, role }))).toEqual({ id: 1, role })
     }
   })

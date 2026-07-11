@@ -5,22 +5,12 @@
  */
 
 /**
- * 창의 역할. `shell` 은 전환기의 현행 통합 창(온보딩·idle·녹화·미리보기를 한 창에서
- * 스왑) — 이후 티켓에서 editor(#75)·library(#78)·welcome(#80) 로 쪼개져 사라진다.
- * toolbar·overlay 는 캡처 티켓(#70~)이 채운다. `rec-pill` 은 녹화 중에만 뜨는
- * 플로팅 REC 알약(경과 타임코드 + 정지, #74).
+ * 창의 역할 — 확정 토폴로지(#54)의 5종(toolbar·overlay·editor·library·welcome)에
+ * 녹화 중에만 뜨는 플로팅 REC 알약 `rec-pill`(경과 타임코드 + 정지, #74)을 더한 구성.
  */
-export type WindowRole =
-  | 'shell'
-  | 'toolbar'
-  | 'overlay'
-  | 'rec-pill'
-  | 'editor'
-  | 'library'
-  | 'welcome'
+export type WindowRole = 'toolbar' | 'overlay' | 'rec-pill' | 'editor' | 'library' | 'welcome'
 
 const ROLES: readonly WindowRole[] = [
-  'shell',
   'toolbar',
   'overlay',
   'rec-pill',
@@ -46,7 +36,7 @@ export function buildWindowHash(params: WindowParams): string {
 
 /**
  * 위치 해시에서 창 파라미터를 읽는다. 선행 `#` 유무 모두 허용. id 가 양의 정수가
- * 아니거나 role 이 알 수 없는 값이면 `null`(부팅 시 shell 기본값으로 폴백하는 근거).
+ * 아니거나 role 이 알 수 없는 값이면 `null`(렌더러는 아무것도 그리지 않는다).
  */
 export function parseWindowHash(hash: string): WindowParams | null {
   const raw = hash.startsWith('#') ? hash.slice(1) : hash

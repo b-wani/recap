@@ -9,7 +9,7 @@ interface FakeWin {
 describe('WindowRegistry', () => {
   it('create 는 1부터 단조 증가하는 고유 id 를 부여한다', () => {
     const reg = new WindowRegistry<FakeWin>()
-    const a = reg.create('shell', { tag: 'a' })
+    const a = reg.create('library', { tag: 'a' })
     const b = reg.create('editor', { tag: 'b' })
     expect(a.id).toBe(1)
     expect(b.id).toBe(2)
@@ -28,7 +28,7 @@ describe('WindowRegistry', () => {
 
   it('context 를 안 주면 null 로 등록한다', () => {
     const reg = new WindowRegistry<FakeWin>()
-    const entry = reg.create('shell', { tag: 's' })
+    const entry = reg.create('library', { tag: 's' })
     expect(entry.context).toBeNull()
   })
 
@@ -58,16 +58,16 @@ describe('WindowRegistry', () => {
 
   it('remove 후 get 은 undefined, id 는 재사용되지 않는다', () => {
     const reg = new WindowRegistry<FakeWin>()
-    const a = reg.create('shell', { tag: 'a' })
+    const a = reg.create('library', { tag: 'a' })
     reg.remove(a.id)
     expect(reg.get(a.id)).toBeUndefined()
-    const b = reg.create('shell', { tag: 'b' })
+    const b = reg.create('library', { tag: 'b' })
     expect(b.id).toBe(2)
   })
 
   it('all 은 등록된 전부를 등록 순서로 준다', () => {
     const reg = new WindowRegistry<FakeWin>()
-    const a = reg.create('shell', { tag: 'a' })
+    const a = reg.create('library', { tag: 'a' })
     const b = reg.create('editor', { tag: 'b' })
     expect(reg.all().map((e) => e.id)).toEqual([a.id, b.id])
   })

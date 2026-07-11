@@ -38,7 +38,7 @@ export class WindowRegistry<W = unknown> {
     return [...this.entries.values()].filter((e) => e.role === role)
   }
 
-  /** 해당 role 의 첫 등록 창(shell·library·welcome 처럼 싱글톤 role 의 focus-if-exists 근거). */
+  /** 해당 role 의 첫 등록 창(library·welcome 처럼 싱글톤 role 의 focus-if-exists 근거). */
   firstByRole(role: WindowRole): WindowEntry<W> | undefined {
     for (const entry of this.entries.values()) {
       if (entry.role === role) return entry

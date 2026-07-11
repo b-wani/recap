@@ -2,18 +2,16 @@ import { Tray, Menu, nativeImage, type MenuItemConstructorOptions } from 'electr
 import type { RecordingState, RecordingSummary } from '../shared/ipc'
 
 /**
- * 메뉴바 상주 아이콘. 앱의 진입점 — idle 에서는 런처 창을 재호출하고, 녹화 중에는
- * 빨간 점 + 경과 시간을 표시하며 클릭으로 정지할 수 있다. 창을 닫아도(숨겨도)
+ * 메뉴바 상주 아이콘. 앱의 유일한 앵커(#54) — idle 에서는 캡처 툴바를 소환하고, 녹화
+ * 중에는 빨간 점 + 경과 시간을 표시하며 클릭으로 정지할 수 있다. 창을 모두 닫아도
  * 앱은 여기 남아 있으며, 종료는 컨텍스트 메뉴의 '종료'로만 한다.
  *
- * 좌클릭 = 상태별 기본 동작(녹화 중이면 정지, 아니면 런처 열기),
- * 우클릭 = 컨텍스트 메뉴(녹화 시작/정지 · 런처 · 최근 녹화 · 종료).
+ * 좌클릭 = 상태별 기본 동작(녹화 중이면 정지, 아니면 캡처 툴바 소환),
+ * 우클릭 = 컨텍스트 메뉴(녹화 시작/정지 · Welcome · 라이브러리 · 최근 녹화 · 종료).
  */
 export interface TrayCallbacks {
-  /** ⌥⌘R 과 동일 — 녹화 중이면 정지, 아니면 마지막/기본 대상으로 시작. */
+  /** ⌥⌘R 과 동일 — 녹화 중이면 정지, 아니면 캡처 툴바 소환. */
   onToggleRecord: () => void
-  /** 런처(idle 뷰) 창을 표시·포커스한다. */
-  onShowLauncher: () => void
   /** Welcome(온보딩) 창을 다시 연다 — 완료 플래그와 무관하게 항상 허용(#80). */
   onShowWelcome: () => void
   /** 라이브러리 창을 열거나 포커스한다(#78) — 전체 브라우즈의 정식 진입점. */
@@ -56,7 +54,6 @@ export class AppTray {
     this.tray.setToolTip('Recap')
 
     // 좌클릭: 녹화 중이면 정지, 아니면 캡처 툴바 소환(#70). onToggleRecord 가 둘을 판단한다.
-    // 런처(shell) 창은 컨텍스트 메뉴 '런처 열기'로 연다.
     this.tray.on('click', () => this.cb.onToggleRecord())
     this.tray.on('right-click', () => void this.showMenu())
   }
@@ -118,7 +115,6 @@ export class AppTray {
 
     return Menu.buildFromTemplate([
       { label: '녹화 시작 (⌥⌘R)', click: () => this.cb.onToggleRecord() },
-      { label: '런처 열기', click: () => this.cb.onShowLauncher() },
       { label: 'Welcome 다시 보기', click: () => this.cb.onShowWelcome() },
       { type: 'separator' },
       { label: '라이브러리 열기', click: () => this.cb.onShowLibrary() },

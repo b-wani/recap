@@ -9,7 +9,6 @@ import {
   screen,
   systemPreferences,
   desktopCapturer,
-  nativeImage,
   globalShortcut,
   Notification,
   dialog
@@ -70,16 +69,11 @@ protocol.registerSchemesAsPrivileged([
 
 /**
  * 열린 창들의 단일 대장. 구 단일 `mainWindow` 전역을 대체한다(#64/#69). main 은
- * 이 레지스트리로 role 별 창을 지목해 메시지를 보내거나 컨텍스트를 돌려준다. 지금은
- * `shell`(온보딩·idle·녹화·미리보기를 한 창에서 스왑하는 전환기 통합 창) 하나만 상주하며,
- * editor(#75)·library(#78)·welcome(#80)·toolbar/overlay(#70~) 티켓이 role 을 채워 나간다.
+ * 이 레지스트리로 role 별 창을 지목해 메시지를 보내거나 컨텍스트를 돌려준다.
+ * role 은 확정 토폴로지(#54)의 5종 — toolbar·overlay·editor(다중)·library·welcome —
+ * 에 녹화 중 표시용 rec-pill(#74)을 더한 구성이다.
  */
 const registry = new WindowRegistry<BrowserWindow>()
-
-/** 현재 상주 shell 창(구 `mainWindow` 대체). 없으면 null. */
-function shellWindow(): BrowserWindow | null {
-  return registry.firstByRole('shell')?.window ?? null
-}
 
 let appTray: AppTray | null = null
 /** 앱 종료 절차 진입 여부. 창 닫기(X)를 '숨김'으로 바꾸되, 실제 종료 시엔 통과시킨다. */
@@ -136,7 +130,7 @@ const recorder = new Recorder(sidecarPath())
  */
 function applyState(state: RecordingState): void {
   currentState = state
-  // 레지스트리 기반 구독 role 타깃 전송(#74) — 캡처 상태 구독 role(shell·툴바·오버레이·
+  // 레지스트리 기반 구독 role 타깃 전송(#74) — 캡처 상태 구독 role(툴바·오버레이·
   // REC 알약)에만 보낸다. 에디터/라이브러리/Welcome 은 캡처 상태와 무관해 받지 않는다.
   for (const entry of registry.all()) {
     if (isSubscribedRole(entry.role)) entry.window.webContents.send(IpcChannel.State, state)
@@ -146,33 +140,29 @@ function applyState(state: RecordingState): void {
 }
 
 /**
- * 상태에 맞춰 창 표시를 조정한다. 녹화 중에는 창을 숨겨 캡처 대상을 가리지 않고
- * (트레이가 상태를 표시), 오류 진입 시 shell 창을 자동으로 띄운다. idle 은 사용자가
- * 숨긴 상태를 존중해 건드리지 않는다(트레이로 재호출 가능). 정지 시 에디터 창 자동
- * 생성은 `createEditorWindow`가 별도로 맡는다(전역 상태와 무관한 창이라 여기서 다루지 않는다).
+ * 상태에 맞춰 창 표시를 조정한다. 녹화 중에는 REC 알약을 띄우고(트레이가 상태를 표시),
+ * 오류 진입 시엔 창 대신 시스템 알림으로 안내한다(#54 메뉴바 전용 토폴로지 — 상주 창 없음).
+ * 정지 시 에디터 창 자동 생성은 `createEditorWindow`가 별도로 맡는다(전역 상태와 무관한
+ * 창이라 여기서 다루지 않는다).
  */
 function syncWindowForState(state: RecordingState): void {
   switch (state.status) {
     case 'recording':
-      shellWindow()?.hide()
       showRecPill()
       break
     case 'error':
       destroyRecPill()
-      showLauncher()
+      notifyCaptureError(state.message)
       break
     default:
       destroyRecPill()
   }
 }
 
-/** 런처/편집기 창을 표시·포커스한다. 메뉴바 상주 모드에서 창이 뜨는 동안 Dock 도 보인다. */
-function showLauncher(): void {
-  const win = shellWindow()
-  if (!win) return
-  if (process.platform === 'darwin' && app.dock) void app.dock.show()
-  win.show()
-  win.focus()
+/** 캡처 오류를 시스템 알림으로 안내한다 — 오류 표시 전용 창을 두지 않는다(#54). */
+function notifyCaptureError(message: string): void {
+  if (!Notification.isSupported()) return
+  new Notification({ title: '녹화에 실패했어요', body: message }).show()
 }
 
 /** 방금 끝난 녹화 결과를 에디터 컨텍스트로 옮긴다(레시피는 아직 없음 — 렌더러가 유도). */
@@ -306,7 +296,8 @@ async function confirmRestart(): Promise<void> {
       'macOS는 권한을 켜도 실행 중인 앱에는 바로 반영되지 않을 수 있어요. ' +
       '지금 재시작하면 방금 허용한 권한이 적용됩니다.'
   }
-  const parent = shellWindow()
+  // 온보딩 권한 단계에서만 호출되므로 Welcome 창을 부모로 붙인다(없으면 독립 다이얼로그).
+  const parent = welcomeWindow()
   const { response } = parent
     ? await dialog.showMessageBox(parent, options)
     : await dialog.showMessageBox(options)
@@ -423,7 +414,7 @@ function loadRenderer(win: BrowserWindow, id: number, role: WindowRole): void {
 /**
  * role 별 창 생성의 단일 경로(구 `createWindow` 일반화). 창을 만들고 레지스트리에
  * 등록해 `windowId` 를 부여하며, 초기 컨텍스트를 실어 두고 파괴 시 자동으로 대장에서 지운다.
- * 외부 링크는 기본 브라우저로 넘긴다(공통). shell 의 상주(닫기=숨김) 정책은 호출부에서 얹는다.
+ * 외부 링크는 기본 브라우저로 넘긴다(공통). 라이브러리의 상주(닫기=숨김) 정책은 호출부에서 얹는다.
  */
 function createRoleWindow(
   role: WindowRole,
@@ -441,7 +432,7 @@ function createRoleWindow(
 
   const entry = registry.create(role, win, context)
 
-  // 창이 실제로 파괴되면 대장에서 지운다(닫기=숨김인 shell 은 종료 때만 여기 도달).
+  // 창이 실제로 파괴되면 대장에서 지운다(닫기=숨김인 라이브러리는 종료 때만 여기 도달).
   win.on('closed', () => registry.remove(entry.id))
 
   win.webContents.setWindowOpenHandler((details) => {
@@ -462,47 +453,6 @@ function defaultWindowOptions(): Electron.BrowserWindowConstructorOptions {
     title: 'Recap',
     icon: brandIconPath()
   }
-}
-
-/**
- * 상주 shell 창을 만든다. 온보딩·idle·녹화·미리보기를 한 창에서 스왑하는 전환기 통합 창으로,
- * 닫기(X)는 종료가 아니라 숨김(메뉴바 상주)이다. 이후 티켓이 이 창의 책임을 role 별로 떼어낸다.
- */
-function createShellWindow(): WindowEntry<BrowserWindow> {
-  const entry = createRoleWindow(
-    'shell',
-    {
-      width: DEFAULT_WINDOW_SIZE.width,
-      height: DEFAULT_WINDOW_SIZE.height,
-      minWidth: 720,
-      minHeight: 560,
-      show: false,
-      title: 'Recap',
-      icon: brandIconPath()
-    },
-    { role: 'shell' }
-  )
-  const win = entry.window
-
-  win.on('ready-to-show', () => win.show())
-
-  // 창 닫기(X)는 앱 종료가 아니라 숨김 — 앱은 메뉴바에 상주한다. 종료는 트레이의 '종료'로만.
-  win.on('close', (e) => {
-    if (isQuitting) return
-    e.preventDefault()
-    win.hide()
-  })
-  // 창이 숨으면 Dock 아이콘도 감춰 메뉴바 전용 상태로, 다시 뜨면 보이게 한다.
-  win.on('hide', () => {
-    if (process.platform === 'darwin' && app.dock) void app.dock.hide()
-  })
-
-  return entry
-}
-
-/** 상주 shell 창을 보장한다(없으면 생성). 부팅·activate 진입점이 공유한다. */
-function ensureShellWindow(): void {
-  if (!shellWindow()) createShellWindow()
 }
 
 /** Welcome(온보딩) 창의 고정 크기 — 비리사이즈(#80). */
@@ -1031,10 +981,10 @@ function registerIpc(): void {
     shell.showItemInFolder(folder)
   })
 
-  // 지정 role 의 창을 연다. 싱글톤 role(shell·library·welcome)은 이미 열려 있으면
+  // 지정 role 의 창을 연다. 싱글톤 role(library·welcome)은 이미 열려 있으면
   // 새로 만들지 않고 기존 창을 표시·포커스한다. 새/기존 창의 windowId 를 돌려준다.
   ipcMain.handle(IpcChannel.WindowOpen, (_e, role: WindowRole, context: unknown) => {
-    const isSingleton = role === 'shell' || role === 'library' || role === 'welcome'
+    const isSingleton = role === 'library' || role === 'welcome'
     if (isSingleton) {
       const existing = registry.firstByRole(role)
       if (existing) {
@@ -1044,13 +994,11 @@ function registerIpc(): void {
       }
     }
     const entry =
-      role === 'shell'
-        ? createShellWindow()
-        : role === 'welcome'
-          ? createWelcomeWindow()
-          : role === 'library'
-            ? createLibraryWindow()
-            : createRoleWindow(role, defaultWindowOptions(), context)
+      role === 'welcome'
+        ? createWelcomeWindow()
+        : role === 'library'
+          ? createLibraryWindow()
+          : createRoleWindow(role, defaultWindowOptions(), context)
     return entry.id
   })
 
@@ -1080,12 +1028,11 @@ function registerIpc(): void {
   // Area 오버레이(#72) 확정 — 로컬 rect 를 전역 sourceRect 로 매핑해 crop 녹화를 시작한다.
   ipcMain.handle(IpcChannel.CaptureAreaConfirm, (_e, rect: Rect) => confirmAreaSelection(rect))
 
-  // 완료 시 플래그를 저장하고 Welcome 창을 닫은 뒤(#80), shell 창을 보인다(없으면 새로 만든다).
+  // 완료 시 플래그를 저장하고 Welcome 창을 닫는다(#80). 이후 앱은 메뉴바에만 상주하며,
+  // 캡처 진입은 트레이·⌥⌘R 이 맡는다(#54 — 부팅/상주 창 없음).
   ipcMain.handle(IpcChannel.OnboardingComplete, async () => {
     await saveOnboardingComplete(app.getPath('userData'))
     welcomeWindow()?.close()
-    if (shellWindow()) showLauncher()
-    else createShellWindow()
   })
 
   // 온보딩 권한 단계: 상태 조회(폴링) · 설정 패널 열기 · 재시작 확인 다이얼로그.
@@ -1120,10 +1067,10 @@ function registerIpc(): void {
 app.setName('Recap')
 
 app.whenReady().then(async () => {
-  // dev 실행에서도 Dock 에 브랜드 아이콘이 뜨도록 지정한다(패키징 전 기본 Electron 아이콘 대체).
-  if (process.platform === 'darwin' && app.dock) {
-    const icon = nativeImage.createFromPath(brandIconPath())
-    if (!icon.isEmpty()) app.dock.setIcon(icon)
+  // 메뉴바 전용 accessory 앱(#54) — Dock 아이콘·⌘Tab 목록에서 앱을 숨긴다. 창(에디터·
+  // 라이브러리 등)은 accessory 정책에서도 정상적으로 뜨고 포커스를 받는다.
+  if (process.platform === 'darwin') {
+    app.setActivationPolicy('accessory')
   }
 
   protocol.handle(MEDIA_SCHEME, async (request) => {
@@ -1141,26 +1088,18 @@ app.whenReady().then(async () => {
   })
 
   registerIpc()
-  // 완료 플래그가 없으면(첫 실행 등) Welcome 창을 자동 소환한다(#80) — 이 판정을
-  // 예전엔 App.tsx(렌더러)가 했지만, 창이 분리되며 main으로 옮겨왔다. 완료 후엔
-  // Welcome이 닫히며 onboarding:complete 핸들러가 shell 창을 새로 만든다.
+  // 완료 플래그가 없으면(첫 실행 등) Welcome 창을 자동 소환한다(#80). 온보딩이 끝난
+  // 뒤의 부팅은 창 없이 메뉴바(트레이)에만 상주한다 — 캡처 진입은 트레이·⌥⌘R(#54).
   const onboarded = await isOnboardingComplete(app.getPath('userData'))
-  if (onboarded) createShellWindow()
-  else summonWelcome()
+  if (!onboarded) summonWelcome()
   setupTray()
   registerGlobalShortcut()
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) ensureShellWindow()
-    else showLauncher()
-  })
 })
 
 /** 메뉴바 트레이를 세운다. 진입점·녹화 상태 표시·정지·종료를 담당한다. */
 function setupTray(): void {
   appTray = new AppTray(brandAssetPath('tray-idle.png'), brandAssetPath('tray-recording.png'), {
     onToggleRecord: () => void toggleRecord(),
-    onShowLauncher: () => showLauncher(),
     onShowWelcome: () => summonWelcome(),
     onShowLibrary: () => summonLibrary(),
     onOpenRecording: (folder) => {

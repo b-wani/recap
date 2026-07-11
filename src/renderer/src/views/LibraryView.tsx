@@ -13,7 +13,7 @@ const SORT_OPTIONS: { value: LibrarySortKey; label: string }[] = [
 
 /**
  * 라이브러리 창(#78) — 녹화 전체를 썸네일 그리드로 브라우즈하는 독립 창. 최근 목록
- * 로직(IdleView 상속)에 정렬을 더한다. 카드 클릭 = 에디터 창 열기(`editor:open` 재사용).
+ * 로직(구 IdleView 상속)에 정렬을 더한다. 카드 클릭 = 에디터 창 열기(`editor:open` 재사용).
  *
  * 항목 관리(#79): 카드 `⋯`/우클릭 메뉴에서 이름변경·파일 위치 열기·삭제. 헤더 검색이
  * title로 필터한다.

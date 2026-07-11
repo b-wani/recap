@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { EditorContext, OverlayContext, RecordingState } from '../../shared/ipc'
+import type { EditorContext, OverlayContext } from '../../shared/ipc'
 import { parseWindowHash } from '../../shared/window-url'
-import { IdleView } from './views/IdleView'
-import { RecordingView } from './views/RecordingView'
 import { EditorView } from './views/EditorView'
 import { LibraryView } from './views/LibraryView'
-import { ErrorView } from './views/ErrorView'
 import { WelcomeView } from './views/WelcomeView'
 import { PlaceholderView } from './views/PlaceholderView'
 import { ToolbarView } from './views/ToolbarView'
@@ -15,22 +12,16 @@ import { AreaOverlayView } from './views/AreaOverlayView'
 import { DisplayOverlayView } from './views/DisplayOverlayView'
 
 export default function App(): JSX.Element {
-  // 이 창의 정체(id·role) — main 이 URL 해시로 실어 준다(#69). 없으면(구 진입 경로 등)
-  // 전환기 통합 창인 shell 로 폴백한다.
+  // 이 창의 정체(id·role) — main 이 URL 해시로 실어 준다(#69). 모든 창이 이 경로로
+  // 생성되므로 해시가 없거나 못 읽으면 아무것도 그리지 않는다.
   const params = useMemo(() => parseWindowHash(window.location.hash), [])
-  const role = params?.role ?? 'shell'
+  const role = params?.role ?? null
 
-  // main 이 창에 넣어 둔 초기 컨텍스트를 id 로 당겨온다(pull 모델). shell 은 아직 안 쓴다.
+  // main 이 창에 넣어 둔 초기 컨텍스트를 id 로 당겨온다(pull 모델).
   const [context, setContext] = useState<unknown>(null)
   useEffect(() => {
     if (params) void window.recap.getWindowContext(params.id).then(setContext)
   }, [params])
-
-  const [state, setState] = useState<RecordingState>({ status: 'idle' })
-
-  useEffect(() => window.recap.onStateChange(setState), [])
-
-  const goIdle = (): void => setState({ status: 'idle' })
 
   // 캡처 툴바 창(#70) — 프레임 없는 플로팅 pill 이라 .app 크롬 없이 자체 루트로 그린다.
   if (role === 'toolbar') {
@@ -73,7 +64,7 @@ export default function App(): JSX.Element {
   }
 
   // 그 밖의 아직 전용 화면이 없는 role 창은 자리표시자로 골격이 닿았음을 보인다.
-  if (role !== 'shell') {
+  if (role !== null) {
     return (
       <main className="app">
         <PlaceholderView id={params?.id ?? 0} role={role} context={context} />
@@ -81,12 +72,6 @@ export default function App(): JSX.Element {
     )
   }
 
-  return (
-    <main className="app">
-      <h1 className="title">Recap</h1>
-      {state.status === 'idle' && <IdleView />}
-      {state.status === 'recording' && <RecordingView state={state} />}
-      {state.status === 'error' && <ErrorView state={state} onReset={goIdle} />}
-    </main>
-  )
+  // 창 파라미터가 없는 창은 없다 — 정체를 모르는 창은 빈 화면으로 둔다.
+  return <></>
 }
