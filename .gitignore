@@ -12,3 +12,7 @@ src/sidecar/.swiftpm/
 # Local recordings (never commit user recordings)
 *.mp4
 *.gif
+
+# Playwright E2E artifacts
+test-results/
+playwright-report/
