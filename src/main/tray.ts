@@ -53,7 +53,7 @@ export class AppTray {
     this.recordingIcon = nativeImage.createFromPath(recordingIconPath)
 
     this.tray = new Tray(this.idleIcon)
-    this.tray.setToolTip('Hoppy')
+    this.tray.setToolTip('Recap')
 
     // 좌클릭: 녹화 중이면 정지, 아니면 캡처 툴바 소환(#70). onToggleRecord 가 둘을 판단한다.
     // 런처(shell) 창은 컨텍스트 메뉴 '런처 열기'로 연다.

@@ -35,7 +35,7 @@ async function saveThumbnailFromCanvas(canvas: HTMLCanvasElement, folder: string
     off.toBlob(resolve, 'image/jpeg', 0.7)
   )
   if (!blob) return
-  await window.hoppy.saveThumbnail(folder, await blob.arrayBuffer())
+  await window.recap.saveThumbnail(folder, await blob.arrayBuffer())
 }
 
 /**
@@ -61,7 +61,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
 
   // 창 부팅 시 저장된 스타일 프리셋 목록을 한 번 불러온다.
   useEffect(() => {
-    void window.hoppy.listPresets().then(setPresets)
+    void window.recap.listPresets().then(setPresets)
   }, [])
 
   // 팝오버 밖 클릭 시 닫는다(인코딩 중에는 진행 상황을 계속 보여주도록 열어 둔다).
@@ -133,7 +133,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
   // 편집 상태는 그대로 녹화 폴더에 저장해 다시 열었을 때 복원되게 한다(이슈 #9 영속화). 저장은 창 로컬로 동작한다.
   useEffect(() => {
     recipeRef.current = recipe
-    if (recipe) void window.hoppy.saveRecipe(state.folder, recipe)
+    if (recipe) void window.recap.saveRecipe(state.folder, recipe)
   }, [recipe, state.folder])
 
   // 영상 메타데이터가 오면(원본 크기 확정) 렌더 레시피를 확정한다.
@@ -206,7 +206,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
       const bytes = await render(video, recipe, GITHUB_PRESET, (p) =>
         setExportStatus({ phase: 'encoding', format, ...p })
       )
-      const { path, sizeBytes } = await window.hoppy.saveExport(bytes, state.folder, format)
+      const { path, sizeBytes } = await window.recap.saveExport(bytes, state.folder, format)
       setExportStatus({
         phase: 'done',
         format,
@@ -237,7 +237,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
   // 현재 스타일(배경/커서)을 이름 붙여 앱 전역 프리셋으로 저장한다(#77).
   const onSavePreset = async (name: string): Promise<void> => {
     if (!recipe) return
-    const saved = await window.hoppy.savePreset(name, recipe)
+    const saved = await window.recap.savePreset(name, recipe)
     setPresets((prev) => [...prev, saved])
   }
   // 저장된 프리셋의 스타일을 현재 레시피에 반영한다(줌/트림 등은 불변, 순수 함수 적용).
@@ -245,7 +245,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     update((r) => applyStylePreset(r, preset))
   }
   const onDeletePreset = async (id: string): Promise<void> => {
-    await window.hoppy.deletePreset(id)
+    await window.recap.deletePreset(id)
     setPresets((prev) => prev.filter((p) => p.id !== id))
   }
 
@@ -282,7 +282,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
             <span className="meta-sub">(원본 {formatElapsed(state.durationMs)})</span>
           )}
         </div>
-        <button className="btn btn-record btn-sm" onClick={() => window.hoppy.start(state.target.id)}>
+        <button className="btn btn-record btn-sm" onClick={() => window.recap.start(state.target.id)}>
           ● 같은 대상 다시 녹화
         </button>
         <div className="export-anchor" ref={exportBoxRef}>

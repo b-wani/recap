@@ -21,20 +21,20 @@ export function ToolbarView(): JSX.Element {
 
   // 모드 전환을 main 에 알린다 — 모드별 선택 오버레이(자식 창)를 띄우고, 다른 종류는 닫는다.
   useEffect(() => {
-    void window.hoppy.captureSetMode(mode)
+    void window.recap.captureSetMode(mode)
   }, [mode])
 
   // 카운트다운 토글을 main 에도 반영한다 — Display 오버레이는 다른 창(프로세스)이라 이 로컬
   // state 를 직접 공유할 수 없어, 오버레이 생성 시점의 값을 컨텍스트로 스냅샷해 실어 보낸다.
   useEffect(() => {
-    void window.hoppy.captureSetCountdown(countdownOn)
+    void window.recap.captureSetCountdown(countdownOn)
   }, [countdownOn])
 
   // Esc = 취소(어느 컨트롤에 포커스가 있든).
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
-      void window.hoppy.captureCancel()
+      void window.recap.captureCancel()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -98,7 +98,7 @@ export function ToolbarView(): JSX.Element {
           type="button"
           className="icon-btn"
           aria-label="취소"
-          onClick={() => void window.hoppy.captureCancel()}
+          onClick={() => void window.recap.captureCancel()}
         >
           ✕
         </button>

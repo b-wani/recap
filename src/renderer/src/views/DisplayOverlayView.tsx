@@ -19,7 +19,7 @@ export function DisplayOverlayView({ context }: { context: DisplayOverlayContext
     const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return
       if (count !== null) setCount(null)
-      else void window.hoppy.captureCancel()
+      else void window.recap.captureCancel()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -31,7 +31,7 @@ export function DisplayOverlayView({ context }: { context: DisplayOverlayContext
     if (count <= 0) {
       if (!startedRef.current) {
         startedRef.current = true
-        void window.hoppy.captureStart('display', context.targetId)
+        void window.recap.captureStart('display', context.targetId)
       }
       return
     }
@@ -42,7 +42,7 @@ export function DisplayOverlayView({ context }: { context: DisplayOverlayContext
   const onConfirm = (): void => {
     if (count !== null) return
     if (context.countdownEnabled) setCount(3)
-    else void window.hoppy.captureStart('display', context.targetId)
+    else void window.recap.captureStart('display', context.targetId)
   }
 
   return (

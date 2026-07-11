@@ -1,6 +1,6 @@
-# Hoppy
+# Recap
 
-Hoppy(구 dev-screen)은 웹 프론트엔드 개발자가 개발한 화면을 녹화하고 자동 효과(줌, 커서 스무딩)를 입혀, GitHub issue/PR과 업무 티켓에 첨부할 짧은 데모 영상(1~2분)을 만드는 macOS 앱. Screen Studio와 Cap의 공통 코어 기능만 벤치마킹한다.
+Recap(구 dev-screen)은 웹 프론트엔드 개발자가 개발한 화면을 녹화하고 자동 효과(줌, 커서 스무딩)를 입혀, GitHub issue/PR과 업무 티켓에 첨부할 짧은 데모 영상(1~2분)을 만드는 macOS 앱. Screen Studio와 Cap의 공통 코어 기능만 벤치마킹한다.
 
 ## Language
 

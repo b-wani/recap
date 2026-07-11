@@ -36,7 +36,7 @@ export function WelcomeView(): JSX.Element {
     if (!canAdvance(index, permissions)) return
     const result = advance(index)
     if (result.kind === 'complete') {
-      void window.hoppy.completeOnboarding()
+      void window.recap.completeOnboarding()
     } else {
       setIndex(result.index)
     }
@@ -61,14 +61,14 @@ export function WelcomeView(): JSX.Element {
     let cancelled = false
     let prev: PermissionStatus | null = null
     const poll = async (): Promise<void> => {
-      const next = await window.hoppy.getPermissionStatus()
+      const next = await window.recap.getPermissionStatus()
       if (cancelled) return
       setPermissions(next)
       if (
         prev &&
         ((!prev.screen && next.screen) || (!prev.accessibility && next.accessibility))
       ) {
-        void window.hoppy.confirmRestart()
+        void window.recap.confirmRestart()
       }
       prev = next
     }
@@ -89,7 +89,7 @@ export function WelcomeView(): JSX.Element {
           <HoppyMascot className="welcome-mascot" />
           <h1>환영해요!</h1>
           <p>
-            Hoppy가 Hoppy 사용법을
+            Hoppy가 Recap 사용법을
             <br />한 번에 안내할게요.
           </p>
           <p className="welcome-progress">
@@ -191,7 +191,7 @@ function PermissionRow({
   const openSettings = (): void => {
     if (opening.current) return
     opening.current = true
-    void window.hoppy.openPermissionSettings(kind).finally(() => {
+    void window.recap.openPermissionSettings(kind).finally(() => {
       opening.current = false
     })
   }

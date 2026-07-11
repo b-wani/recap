@@ -25,11 +25,11 @@ export function AreaOverlayView(): JSX.Element {
   const dragRef = useRef<DragState | null>(null)
   const boundsRef = useRef({ width: window.innerWidth, height: window.innerHeight })
 
-  const cancel = useCallback((): void => void window.hoppy.captureCancel(), [])
+  const cancel = useCallback((): void => void window.recap.captureCancel(), [])
 
   const confirm = useCallback((): void => {
     if (!rect || rect.width <= 0 || rect.height <= 0) return
-    void window.hoppy.captureAreaConfirm(rect)
+    void window.recap.captureAreaConfirm(rect)
   }, [rect])
 
   // ESC = 취소, Enter = 확정(사각형이 있을 때만). 어느 컨트롤에 포커스가 있든 동작한다.
