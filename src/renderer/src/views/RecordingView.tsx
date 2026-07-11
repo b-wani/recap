@@ -24,7 +24,7 @@ export function RecordingView({
         {state.target.kind === 'display' ? '전체 화면' : '창'}: {state.target.title} · 마우스 이벤트{' '}
         {state.eventCount}개 기록됨
       </p>
-      <button className="btn btn-stop" onClick={() => window.hoppy.stop()}>
+      <button className="btn btn-stop" onClick={() => window.recap.stop()}>
         ■ 정지
       </button>
     </section>

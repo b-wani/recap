@@ -31,7 +31,7 @@ export interface OnboardingStep {
  */
 export const ONBOARDING_STEPS: OnboardingStep[] = [
   { id: 'permissions', title: '화면 녹화·손쉬운 사용 권한' },
-  { id: 'overview', title: 'Hoppy가 하는 일' },
+  { id: 'overview', title: 'Recap이 하는 일' },
   { id: 'feature-recording', title: '녹화와 자동 효과' },
   { id: 'feature-editing', title: '경량 편집' },
   { id: 'feature-export', title: '익스포트' },
