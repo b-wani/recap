@@ -1,4 +1,6 @@
 import { join } from 'node:path'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { test, expect } from '@playwright/test'
 import { _electron as electron, type ElectronApplication, type Page } from 'playwright'
 
@@ -6,24 +8,26 @@ import { _electron as electron, type ElectronApplication, type Page } from 'play
  * 앱 기동 스모크 테스트(#102). `electron-vite build` 산출물(out/main/index.js)을
  * 실제 Electron으로 기동해 첫 창(BrowserWindow)이 뜨고 렌더러가 그려지는지 확인한다.
  *
- * 앱은 메뉴바 상주형이지만 부팅 시 반드시 창 하나를 만든다 — 온보딩 완료 전에는
- * Welcome 창(#80), 완료 후에는 shell 창. 어느 쪽이든 같은 렌더러(index.html,
- * #root)를 싣고 문서 타이틀은 'Recap'이므로 그 공통 불변식만 검증한다.
- * macOS 화면녹화 권한이 필요한 캡처 플로우는 스모크 범위에서 제외한다.
+ * 앱은 메뉴바 전용(#110 이후 부팅 시 창 없음)이라, RECAP_USER_DATA_DIR 로
+ * userData 를 임시 디렉터리로 돌려 첫 실행 상태로 기동한다 — 온보딩 미완료면
+ * Welcome 창(#80)이 자동 소환되는 것이 유일한 결정적 부팅 창이다. 렌더러(#root)와
+ * 문서 타이틀 'Recap' 불변식을 검증한다. 화면녹화 권한이 필요한 캡처 플로우는 제외.
  */
 
 let app: ElectronApplication
 let firstWindow: Page
 
 test.beforeAll(async () => {
+  const freshUserData = mkdtempSync(join(tmpdir(), 'recap-e2e-'))
   app = await electron.launch({
-    args: [join(__dirname, '..', 'out', 'main', 'index.js')]
+    args: [join(__dirname, '..', 'out', 'main', 'index.js')],
+    env: { ...process.env, RECAP_USER_DATA_DIR: freshUserData }
   })
   firstWindow = await app.firstWindow()
 })
 
 test.afterAll(async () => {
-  // shell 창은 닫기=숨김(메뉴바 상주)이라 일반 종료 경로가 막혀 있다 — main 프로세스에
+  // 메뉴바 상주 앱이라 창을 닫아도 프로세스가 남는다 — main 프로세스에
   // 직접 exit을 걸어 확실히 내린다.
   await app.evaluate(({ app: electronApp }) => {
     setTimeout(() => electronApp.exit(0), 0)

@@ -1066,6 +1066,12 @@ function registerIpc(): void {
 // (패키징 전에는 package.json name이 소문자 "recap"으로 잡히기 때문).
 app.setName('Recap')
 
+// E2E 테스트가 userData 를 격리된 임시 경로로 돌려 첫 실행 상태(온보딩 미완료 →
+// Welcome 자동 소환)를 재현할 수 있게 한다. macOS 는 HOME 으로는 못 바꾼다.
+if (process.env.RECAP_USER_DATA_DIR) {
+  app.setPath('userData', process.env.RECAP_USER_DATA_DIR)
+}
+
 app.whenReady().then(async () => {
   // 메뉴바 전용 accessory 앱(#54) — Dock 아이콘·⌘Tab 목록에서 앱을 숨긴다. 창(에디터·
   // 라이브러리 등)은 accessory 정책에서도 정상적으로 뜨고 포커스를 받는다.
