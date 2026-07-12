@@ -12,6 +12,8 @@ src/sidecar/.swiftpm/
 # Local recordings (never commit user recordings)
 *.mp4
 *.gif
+# E2E 픽스처 영상(4KB 합성 mp4)은 사용자 녹화가 아니므로 예외
+!e2e/fixtures/*.mp4
 
 # Playwright E2E artifacts
 test-results/
