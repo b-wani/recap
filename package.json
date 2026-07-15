@@ -26,8 +26,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
-    "gifenc": "^1.0.3",
-    "mediabunny": "^1.50.6"
+    "gifenc": "^1.0.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

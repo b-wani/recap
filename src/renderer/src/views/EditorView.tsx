@@ -9,8 +9,8 @@ import {
 import { deleteZoomSegment, trimmedDurationMs } from '../../../shared/recipe.edit'
 import { applyStylePreset, type StylePreset } from '../../../shared/style-preset'
 import { drawComposition } from '../compose'
-import { GITHUB_PRESET, exceedsSizeLimit, type ExportFormat } from '../../../shared/export-preset'
-import { renderRecipeToMp4, renderRecipeToGif } from '../export'
+import { DOORAY_GIF_PRESET, exceedsSizeLimit } from '../../../shared/export-preset'
+import { renderRecipeToGif } from '../export'
 import { formatElapsed } from '../format'
 import { Timeline } from '../components/Timeline'
 import { Sidebar } from '../components/Sidebar'
@@ -195,24 +195,22 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     return () => cancelAnimationFrame(raf)
   }, [state.folder])
 
-  // 익스포트: 미리보기와 동일한 레시피로 원본을 인코딩해 폴더에 저장한다(MP4/GIF 선택).
-  const handleExport = async (format: ExportFormat): Promise<void> => {
+  // 익스포트: 미리보기와 동일한 레시피로 원본을 GIF로 인코딩해 폴더에 저장한다.
+  const handleExport = async (): Promise<void> => {
     const video = videoRef.current
     const recipe = recipeRef.current
     if (!video || !recipe) return
-    setExportStatus({ phase: 'encoding', format, renderedFrames: 0, totalFrames: 0 })
+    setExportStatus({ phase: 'encoding', renderedFrames: 0, totalFrames: 0 })
     try {
-      const render = format === 'gif' ? renderRecipeToGif : renderRecipeToMp4
-      const bytes = await render(video, recipe, GITHUB_PRESET, (p) =>
-        setExportStatus({ phase: 'encoding', format, ...p })
+      const bytes = await renderRecipeToGif(video, recipe, DOORAY_GIF_PRESET, (p) =>
+        setExportStatus({ phase: 'encoding', ...p })
       )
-      const { path, sizeBytes } = await window.recap.saveExport(bytes, state.folder, format)
+      const { path, sizeBytes } = await window.recap.saveExport(bytes, state.folder)
       setExportStatus({
         phase: 'done',
-        format,
         path,
         sizeBytes,
-        exceedsLimit: exceedsSizeLimit(GITHUB_PRESET, sizeBytes, format)
+        exceedsLimit: exceedsSizeLimit(DOORAY_GIF_PRESET, sizeBytes)
       })
     } catch (err) {
       setExportStatus({ phase: 'error', message: err instanceof Error ? err.message : String(err) })

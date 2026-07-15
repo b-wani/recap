@@ -53,7 +53,6 @@ import {
 import { buildWindowHash, type WindowRole } from '../shared/window-url'
 import type { RenderRecipe } from '../shared/recipe'
 import { extractStylePreset, type StylePreset } from '../shared/style-preset'
-import type { ExportFormat } from '../shared/export-preset'
 import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
 import { overlayRectToSourceRect } from '../shared/area-rect'
 
@@ -388,11 +387,11 @@ function copyFileReferenceToClipboard(path: string): void {
 }
 
 /** 익스포트 완료를 시스템 알림으로 알린다. 클릭하면 Finder 에서 파일을 보여준다. */
-function notifyExportDone(path: string, format: ExportFormat): void {
+function notifyExportDone(path: string): void {
   if (!Notification.isSupported()) return
   const notification = new Notification({
     title: '익스포트 완료',
-    body: `${format.toUpperCase()} 파일이 클립보드에 복사됐어요 — PR/티켓에 ⌘V 로 붙여넣으세요.`
+    body: 'GIF 파일이 클립보드에 복사됐어요 — Dooray 업무에 ⌘V 로 붙여넣으세요.'
   })
   notification.on('click', () => shell.showItemInFolder(path))
   notification.show()
@@ -942,22 +941,17 @@ function registerIpc(): void {
 
   ipcMain.handle(IpcChannel.EditorOpen, (_e, folder: string) => openEditorForFolder(folder))
 
-  // 렌더러가 인코딩한 익스포트 바이트를 녹화 폴더에 저장한다(export.mp4 / export.gif).
+  // 렌더러가 인코딩한 GIF 바이트를 녹화 폴더에 저장한다(export.gif 고정).
   ipcMain.handle(
     IpcChannel.ExportSave,
-    async (
-      _e,
-      bytes: ArrayBuffer,
-      folder: string,
-      format: ExportFormat
-    ): Promise<ExportSaveResult> => {
-      const path = join(folder, `export.${format}`)
+    async (_e, bytes: ArrayBuffer, folder: string): Promise<ExportSaveResult> => {
+      const path = join(folder, 'export.gif')
       const buffer = Buffer.from(bytes)
       await writeFile(path, buffer)
       // 익스포트 완료 = 진입 플로우의 종착점. 파일을 클립보드에 참조로 복사해
-      // PR/티켓 코멘트에 곧바로 ⌘V 첨부할 수 있게 하고, 시스템 알림으로 알린다(#37).
+      // Dooray 업무에 곧바로 ⌘V 첨부할 수 있게 하고, 시스템 알림으로 알린다(#37).
       copyFileReferenceToClipboard(path)
-      notifyExportDone(path, format)
+      notifyExportDone(path)
       return { path, sizeBytes: buffer.byteLength }
     }
   )

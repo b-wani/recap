@@ -17,8 +17,8 @@ export function OnboardingStepBody({ id }: { id: OnboardingStepId }): JSX.Elemen
       return (
         <div className="onboarding-body">
           <p className="onboarding-lead">
-            Recap은 개발한 화면을 녹화하고 자동 효과를 입혀, GitHub issue/PR·업무 티켓에 첨부할
-            짧은 데모 영상(1~2분)을 만드는 macOS 앱이에요.
+            Recap은 개발한 화면을 녹화하고 자동 효과를 입혀, Dooray 업무에 첨부할
+            짧은 데모 GIF(1~2분)를 만드는 macOS 앱이에요.
           </p>
           <ul className="onboarding-list">
             <li>
@@ -28,7 +28,7 @@ export function OnboardingStepBody({ id }: { id: OnboardingStepId }): JSX.Elemen
               <b>경량 편집</b> — 앞뒤를 다듬고 줌 구간과 배경을 손봐요.
             </li>
             <li>
-              <b>익스포트</b> — GitHub에 바로 붙일 MP4·GIF로 내보내요.
+              <b>익스포트</b> — Dooray 업무에 바로 붙일 GIF로 내보내요.
             </li>
           </ul>
         </div>
@@ -87,13 +87,10 @@ export function OnboardingStepBody({ id }: { id: OnboardingStepId }): JSX.Elemen
           </p>
           <ul className="onboarding-list">
             <li>
-              <b>GitHub 익스포트 프리셋</b> — 영상 100MB·GIF 10MB 첨부 제한 타겟에 맞춰요.
+              <b>Dooray GIF 프리셋</b> — Dooray 업무 첨부에 맞춘 GIF로 내보내요.
             </li>
             <li>
-              <b>MP4 / GIF</b> — 목적지에 맞는 포맷을 골라요.
-            </li>
-            <li>
-              <b>완료 알림</b> — 끝나면 파일을 클립보드에 복사하고 알려줘요. PR·티켓에 ⌘V로
+              <b>완료 알림</b> — 끝나면 파일을 클립보드에 복사하고 알려줘요. Dooray 업무에 ⌘V로
               바로 붙일 수 있어요.
             </li>
           </ul>
@@ -130,8 +127,8 @@ export function OnboardingStepBody({ id }: { id: OnboardingStepId }): JSX.Elemen
             </dd>
             <dt>GIF가 너무 커요</dt>
             <dd>
-              GitHub 익스포트 프리셋의 GIF 타겟은 10MB예요(최대 480p·15fps로 축소). 용량이 크면
-              MP4로 내보내세요 — 영상은 100MB까지 담깁니다.
+              익스포트 시 Dooray GIF 프리셋에 맞춰 화면을 축소해 담아요. 그래도 크면 트림으로
+              길이를 줄이면 용량이 함께 줄어듭니다.
             </dd>
           </dl>
         </div>

@@ -10,7 +10,6 @@ import {
 } from '../shared/ipc'
 import type { RenderRecipe } from '../shared/recipe'
 import type { StylePreset } from '../shared/style-preset'
-import type { ExportFormat } from '../shared/export-preset'
 import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
 import type { WindowRole } from '../shared/window-url'
 
@@ -38,12 +37,9 @@ const api = {
   /** 저장된 녹화를 독립 에디터 창으로 연다(다중 인스턴스, #75). */
   openEditor: (folder: string): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.EditorOpen, folder),
-  /** 익스포트된 바이트를 포맷에 맞춰 녹화 폴더에 저장하고 경로·용량을 돌려받는다. */
-  saveExport: (
-    bytes: ArrayBuffer,
-    folder: string,
-    format: ExportFormat
-  ): Promise<ExportSaveResult> => ipcRenderer.invoke(IpcChannel.ExportSave, bytes, folder, format),
+  /** 익스포트된 GIF 바이트를 녹화 폴더에 저장하고 경로·용량을 돌려받는다. */
+  saveExport: (bytes: ArrayBuffer, folder: string): Promise<ExportSaveResult> =>
+    ipcRenderer.invoke(IpcChannel.ExportSave, bytes, folder),
   /** 저장된 파일을 Finder에서 연다. */
   revealExport: (path: string): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.ExportReveal, path),

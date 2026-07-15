@@ -19,7 +19,7 @@ export const IpcChannel = {
   SaveThumbnail: 'thumbnail:save',
   /** 저장된 녹화를 독립 에디터 창으로 연다(다중 인스턴스, #75). */
   EditorOpen: 'editor:open',
-  /** 익스포트 바이트를 녹화 폴더에 저장한다(포맷에 따라 export.mp4 / export.gif). */
+  /** 익스포트한 GIF 바이트를 녹화 폴더에 저장한다(export.gif 고정). */
   ExportSave: 'export:save',
   /** 저장된 파일을 Finder에서 연다. */
   ExportReveal: 'export:reveal',
