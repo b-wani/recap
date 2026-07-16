@@ -13,7 +13,7 @@
 import { GIFEncoder, quantize, applyPalette } from 'gifenc'
 import { sampleComposition, type RenderRecipe } from '../../shared/recipe'
 import { trimmedDurationMs } from '../../shared/recipe.edit'
-import { resolveGifConfig, type ExportPreset } from '../../shared/export-preset'
+import { resolveGifConfig, type ExportPreset, type GifSelection } from '../../shared/export-preset'
 import { drawComposition } from './compose'
 
 export interface ExportProgress {
@@ -22,7 +22,7 @@ export interface ExportProgress {
 }
 
 /**
- * 원본 영상 + 렌더 레시피 + 프리셋 → GIF 바이트.
+ * 원본 영상 + 렌더 레시피 + 프리셋 + 선택(해상도·fps) → GIF 바이트.
  * sampleComposition·drawComposition로 미리보기와 같은 합성(배경/배지·커서·트림)을
  * 그린 뒤, 프레임마다 팔레트를 양자화해 gifenc로 인코딩한다. 진행률은 onProgress로 보고한다.
  */
@@ -30,9 +30,10 @@ export async function renderRecipeToGif(
   video: HTMLVideoElement,
   recipe: RenderRecipe,
   preset: ExportPreset,
+  selection: GifSelection,
   onProgress?: (p: ExportProgress) => void
 ): Promise<ArrayBuffer> {
-  const config = resolveGifConfig(preset, recipe.source)
+  const config = resolveGifConfig(preset, recipe.source, selection)
   // 최종 GIF 길이도 트림된 길이를 따른다.
   const outputDurationMs = trimmedDurationMs(recipe)
 
@@ -45,9 +46,11 @@ export async function renderRecipeToGif(
   ctx.scale(config.width / recipe.source.width, config.height / recipe.source.height)
 
   const encoder = GIFEncoder()
-  const frameDelayMs = 1000 / config.fps
-  const frameDurationSec = 1 / config.fps
-  const totalFrames = Math.max(1, Math.round((outputDurationMs / 1000) * config.fps))
+  // delayCs(센티초)가 프레임 간격을 정한다 — 실효 fps = 100 / delayCs(#119). gifenc의 delay는 ms.
+  const frameDelayMs = config.delayCs * 10
+  const effectiveFps = 100 / config.delayCs
+  const frameDurationSec = 1 / effectiveFps
+  const totalFrames = Math.max(1, Math.round((outputDurationMs / 1000) * effectiveFps))
 
   const wasPaused = video.paused
   video.pause()

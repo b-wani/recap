@@ -13,8 +13,8 @@ import type { RecapApi } from '../src/preload'
  *     에디터 창이 뜨고, 비디오 메타데이터 → 레시피 유도 → 사이드바/타임라인까지 그려지는지.
  *  2. 설정 패널 조작 — 사이드바의 패딩 슬라이더·드롭 섀도 체크박스·맥락 입력을 조작하고,
  *     편집 상태가 recipe.json으로 영속되는지.
- *  3. 익스포트 버튼 상태 — 상단 바 primary 버튼이 활성이고, 클릭 시 팝오버(MP4/GIF)가
- *     열리고 바깥 클릭으로 닫히는지.
+ *  3. 익스포트 버튼 상태 — 상단 바 primary 버튼이 활성이고, 클릭 시 팝오버(해상도·fps
+ *     드롭다운 + GIF 내보내기)가 열리고 바깥 클릭으로 닫히는지.
  *
  * 에디터는 실제 녹화 없이 열어야 하므로, 임시 폴더에 최소 녹화 픽스처를 만들어
  * `window.recap.openEditor(folder)`(Welcome 창의 preload API)로 연다. 스크린샷은
@@ -166,7 +166,7 @@ test.describe.serial('리스타일 후 회귀 (#105)', () => {
     await editor.screenshot({ path: join(SCREENSHOT_DIR, '03-settings-panel.png') })
   })
 
-  test('익스포트 버튼 상태 — 활성 primary 버튼, 팝오버 열림/닫힘, MP4·GIF 액션 노출', async () => {
+  test('익스포트 버튼 상태 — 활성 primary 버튼, 팝오버 열림/닫힘, 해상도·fps 드롭다운 + GIF 내보내기', async () => {
     const exportButton = editor.locator('.btn-export-primary')
     await expect(exportButton).toBeVisible()
     await expect(exportButton).toBeEnabled()
@@ -176,8 +176,9 @@ test.describe.serial('리스타일 후 회귀 (#105)', () => {
     await expect(exportButton).toHaveAttribute('aria-expanded', 'true')
     const popover = editor.locator('.export-popover')
     await expect(popover).toBeVisible()
-    await expect(popover.locator('.btn-export', { hasText: 'MP4' })).toBeEnabled()
-    await expect(popover.locator('.btn-export', { hasText: 'GIF' })).toBeEnabled()
+    // 독립 드롭다운 2개(해상도·fps) + 단일 "GIF 내보내기" 버튼(#122·#127, MP4 제거됨).
+    await expect(popover.locator('.export-select')).toHaveCount(2)
+    await expect(popover.locator('.btn-export', { hasText: 'GIF 내보내기' })).toBeEnabled()
     await editor.screenshot({ path: join(SCREENSHOT_DIR, '04-export-popover.png') })
 
     // 팝오버 밖(캔버스 영역) 클릭으로 닫힌다.

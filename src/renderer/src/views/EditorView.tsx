@@ -9,7 +9,13 @@ import {
 import { deleteZoomSegment, trimmedDurationMs } from '../../../shared/recipe.edit'
 import { applyStylePreset, type StylePreset } from '../../../shared/style-preset'
 import { drawComposition } from '../compose'
-import { DOORAY_GIF_PRESET, exceedsSizeLimit } from '../../../shared/export-preset'
+import {
+  DOORAY_GIF_PRESET,
+  DEFAULT_SELECTION,
+  defaultHeightForSource,
+  exceedsSizeLimit,
+  type GifSelection
+} from '../../../shared/export-preset'
 import { renderRecipeToGif } from '../export'
 import { formatElapsed } from '../format'
 import { Timeline } from '../components/Timeline'
@@ -51,6 +57,9 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
   // 선택 상태는 이 하나로 소유한다(줌 구간 인덱스 문자열, 없으면 null). 빈 곳 클릭·Esc로 해제.
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [exportStatus, setExportStatus] = useState<ExportStatus>({ phase: 'idle' })
+  // GIF 익스포트 선택(해상도·fps). 창 열린 동안 유지되고 새 에디터 창이면 기본값(720p/50)으로 리셋된다
+  // (창 하나가 클립 하나 — 컴포넌트 재마운트가 곧 리셋). 원본이 720p 미만이면 메타데이터 로드 시 폴백한다.
+  const [selection, setSelection] = useState<GifSelection>(DEFAULT_SELECTION)
   const [playing, setPlaying] = useState(true)
   const [currentMs, setCurrentMs] = useState(0)
   // 상단 바 익스포트 버튼 아래 팝오버 열림 상태(D3: 익스포트 동선을 상단 바 primary로).
@@ -155,6 +164,8 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     canvas.width = next.source.width
     canvas.height = next.source.height
     setRecipe(next)
+    // 기본 해상도는 720p지만 원본을 넘기지 않는다 — 원본이 720p 미만이면 가능한 최대 옵션으로 폴백.
+    setSelection((s) => ({ ...s, height: defaultHeightForSource(next.source.height) }))
   }
 
   // 재생 루프: 트림 창 안에서만 반복 재생하고, 매 프레임 합성 파라미터를 샘플링해 그대로 그린다.
@@ -202,7 +213,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     if (!video || !recipe) return
     setExportStatus({ phase: 'encoding', renderedFrames: 0, totalFrames: 0 })
     try {
-      const bytes = await renderRecipeToGif(video, recipe, DOORAY_GIF_PRESET, (p) =>
+      const bytes = await renderRecipeToGif(video, recipe, DOORAY_GIF_PRESET, selection, (p) =>
         setExportStatus({ phase: 'encoding', ...p })
       )
       const { path, sizeBytes } = await window.recap.saveExport(bytes, state.folder)
@@ -293,7 +304,13 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
           </button>
           {exportOpen && (
             <div className="export-popover">
-              <ExportPanel status={exportStatus} onExport={handleExport} />
+              <ExportPanel
+                status={exportStatus}
+                selection={selection}
+                onSelectionChange={setSelection}
+                sourceHeight={recipe?.source.height ?? 0}
+                onExport={handleExport}
+              />
             </div>
           )}
         </div>
