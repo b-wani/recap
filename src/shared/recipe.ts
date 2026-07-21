@@ -243,6 +243,13 @@ export interface BadgeState {
  */
 export interface FrameComposition {
   camera: CameraTransform
+  /**
+   * 전환 구간(줌인/아웃·팬) 모션 블러용 서브프레임 카메라 목록 — 노출 창(셔터) 동안의
+   * 카메라 궤적을 균등 표본한 것. 그리기 층이 이 카메라들로 뷰를 겹쳐 누적 평균하면 방향성
+   * (줌은 방사형) 블러가 된다. 정지(hold) 구간·블러 미요청(fps 미지정) 시 없음(undefined) →
+   * 현재 카메라로 한 번만 그린다.
+   */
+  motionBlur?: CameraTransform[]
   /** 커서 이벤트가 없으면 null. */
   cursor: CursorSample | null
   /** 활성 클릭 하이라이트가 없으면 null. */
@@ -332,6 +339,31 @@ export function springEase(p: number): number {
   if (lo === hi) return SPRING_TRAJECTORY[lo]
   return SPRING_TRAJECTORY[lo] + (SPRING_TRAJECTORY[hi] - SPRING_TRAJECTORY[lo]) * (idx - lo)
 }
+
+/**
+ * 모션 블러 튜닝 수치 (결정 #142 — 셔터각 ≈2×). 전환 구간의 프레임 간 카메라 이동을
+ * 노출 창(셔터) 동안의 서브프레임 카메라 궤적으로 표본해 그리기 층에서 누적 평균한다 —
+ * 줌 궤적이면 방사형, 팬 궤적이면 방향성 블러가 궤적에서 자연히 나온다. 정지(hold) 구간은
+ * 궤적이 한 점이라 이동 0 → 블러 0.
+ */
+export const MOTION_BLUR_DEFAULTS = {
+  /**
+   * 셔터각 배수 — 노출 창 길이 = shutter × 프레임 간격(ms). 1.0이 셔터각 360°(한 프레임
+   * 노출)에 해당하고, 기준선 2.0은 그 2배 노출(≈2× 셔터각)로 실물과 유사한 스미어를 만든다.
+   */
+  shutter: 2,
+  /** 서브프레임 간 목표 이동량(원본 px). 노출 창 이동량이 클수록 서브프레임을 더 촘촘히 쓴다. */
+  stepPx: 2,
+  /** 서브프레임 수 상한 — 성능을 위해 가장 빠른 전환에서도 이 이상 그리지 않는다. */
+  maxSubframes: 24,
+  /** 노출 창 최대 이동량이 이 값(원본 px) 미만이면 블러 없음(정지·서브픽셀 이동). */
+  minPx: 0.5,
+  /**
+   * 미리보기의 명목 fps — 미리보기는 rAF로 그려 고정 fps가 없으므로, 이 값으로 노출 창을
+   * 잡아 export(주로 Dooray GIF)와 비슷한 블러 인상을 보여 준다(정량 일치가 아닌 근사).
+   */
+  previewFps: 30
+} as const
 
 /**
  * 커서 튜닝 수치 (SPEC "커서 렌더링"). 규칙만 테스트로 고정하고 값은 실험으로 정한다.
@@ -565,6 +597,63 @@ export function sampleRecipe(recipe: RenderRecipe, t: number): CameraTransform {
 }
 
 /**
+ * 시각 t의 모션 블러 서브프레임 — 노출 창(셔터) 동안의 카메라 궤적을 균등 표본한 카메라 목록.
+ * 그리기 층이 이 카메라들로 뷰를 겹쳐 누적 평균하면 전환 구간에 방향성(줌은 방사형) 블러가
+ * 생긴다. 창 양끝 카메라 사이 콘텐츠의 화면 이동이 서브픽셀 미만이면(정지·팬 없는 hold) null —
+ * 곧 블러 0. 노출 창 = shutter × 1프레임(fps로 프레임 간격 결정), t 중심. 창은 트림 안으로
+ * 가두어(콘텐츠 밖은 이동으로 치지 않음) 트림 경계에서 가짜 블러가 튀지 않게 한다.
+ */
+export function sampleMotionBlur(recipe: RenderRecipe, t: number, fps: number): CameraTransform[] | null {
+  if (fps <= 0) return null
+  if (t < recipe.trim.startMs || t > recipe.trim.endMs) return null
+
+  const frameMs = 1000 / fps
+  const half = (MOTION_BLUR_DEFAULTS.shutter * frameMs) / 2
+  const t0 = Math.max(recipe.trim.startMs, t - half)
+  const t1 = Math.min(recipe.trim.endMs, t + half)
+  if (t1 <= t0) return null
+
+  const camStart = sampleRecipe(recipe, t0)
+  const camEnd = sampleRecipe(recipe, t1)
+
+  // 창 양끝에서 콘텐츠(고정 원본점)가 화면상 얼마나 움직이는지 — 서브픽셀이면 블러 없음.
+  const maxPx = maxContentShiftPx(camStart, camEnd, recipe.source)
+  if (maxPx < MOTION_BLUR_DEFAULTS.minPx) return null
+
+  // 이동량에 비례해 서브프레임 수를 정한다(밴딩 억제) — 단, 성능 상한 안에서.
+  const n = Math.min(
+    MOTION_BLUR_DEFAULTS.maxSubframes,
+    Math.max(2, Math.ceil(maxPx / MOTION_BLUR_DEFAULTS.stepPx))
+  )
+  const samples: CameraTransform[] = []
+  for (let i = 0; i < n; i++) {
+    samples.push(sampleRecipe(recipe, t0 + ((t1 - t0) * i) / (n - 1)))
+  }
+  return samples
+}
+
+/**
+ * 두 카메라 사이 콘텐츠(고정 원본점)의 최대 화면 이동량(원본 px 근사). 화면 위치 ≈
+ * (원본점 - 카메라중심) × 배율. 팬은 균등 이동, 줌은 중심에서 멀수록 큰 이동(방사형)이라
+ * 끝 뷰의 네 모서리를 대표점으로 최대치를 잡는다. 서브프레임 밀도 결정용 근사(패딩 무시).
+ */
+function maxContentShiftPx(a: CameraTransform, b: CameraTransform, source: FrameSize): number {
+  const halfW = source.width / b.scale / 2
+  const halfH = source.height / b.scale / 2
+  let max = 0
+  for (const ox of [-1, 1]) {
+    for (const oy of [-1, 1]) {
+      const qx = b.x + ox * halfW
+      const qy = b.y + oy * halfH
+      const dx = (qx - b.x) * b.scale - (qx - a.x) * a.scale
+      const dy = (qy - b.y) * b.scale - (qy - a.y) * a.scale
+      max = Math.max(max, Math.hypot(dx, dy))
+    }
+  }
+  return max
+}
+
+/**
  * 프레임 샘플링: 시각 t에서 그려야 할 카메라·커서·클릭 파라미터를 계산한다.
  * 카메라 변환 + 스무딩된 커서 + (있다면) 클릭 하이라이트. 계산은 전부 여기(순수 층)에서 한다.
  */
@@ -585,12 +674,17 @@ export function sampleFrame(recipe: RenderRecipe, t: number): FrameSample {
  * 프레임 샘플(카메라·커서·클릭, 트림 반영)에 레시피의 배경/패딩·배지를 더한다. 배지
  * 라벨은 논리 뷰포트 크기(viewport, 포인트)에서 유도하므로, 미리보기와 익스포트가 같은
  * 문자열을 그린다. viewport가 없으면(픽스처·v1 저장본) source로 폴백한다.
+ *
+ * fps를 주면 전환 구간 모션 블러 서브프레임(motionBlur)을 함께 낸다 — 노출 창을 fps 프레임
+ * 간격으로 잡는다. 미리보기·익스포트가 이 값을 넘겨 양쪽에 블러가 반영된다(fps 없으면 블러 없음).
  */
-export function sampleComposition(recipe: RenderRecipe, t: number): FrameComposition {
+export function sampleComposition(recipe: RenderRecipe, t: number, fps?: number): FrameComposition {
   const frame = sampleFrame(recipe, t)
   const viewport = recipe.viewport ?? recipe.source
+  const motionBlur = fps !== undefined ? sampleMotionBlur(recipe, t, fps) : null
   return {
     camera: frame.camera,
+    ...(motionBlur && { motionBlur }),
     cursor: frame.cursor,
     click: frame.click,
     background: recipe.background,

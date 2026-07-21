@@ -5,7 +5,7 @@
  * 이 한 함수를 공유하므로 두 결과물이 동일하게 나온다.
  */
 
-import type { FrameComposition, FrameSize } from '../../shared/recipe'
+import type { CameraTransform, FrameComposition, FrameSize } from '../../shared/recipe'
 
 /** 온스크린·오프스크린 양쪽에서 통용되는 2D 컨텍스트. */
 type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D
@@ -73,14 +73,19 @@ export function drawComposition(
   roundRect(ctx, dx, dy, dw, dh, radius)
   ctx.clip()
 
-  // 카메라가 지정한 원본 영역을 인셋 영역에 그린다.
+  // 카메라가 지정한 원본 영역을 인셋 영역에 그린다. 전환 구간이면 노출 창의 서브프레임
+  // 카메라들을 누적 평균해 방향성(줌은 방사형) 모션 블러를 만들고, 아니면 한 번만 그린다.
   const viewW = W / camera.scale
   const viewH = H / camera.scale
   const sx = camera.x - viewW / 2
   const sy = camera.y - viewH / 2
-  ctx.drawImage(image, sx, sy, viewW, viewH, dx, dy, dw, dh)
+  if (comp.motionBlur && comp.motionBlur.length > 1) {
+    drawMotionBlurred(ctx, image, comp.motionBlur, W, H, dx, dy, dw, dh)
+  } else {
+    ctx.drawImage(image, sx, sy, viewW, viewH, dx, dy, dw, dh)
+  }
 
-  // 커서·클릭 오버레이 — 인셋 영역 좌표계로 매핑해 그린다.
+  // 커서·클릭 오버레이 — 현재 카메라(선명) 기준으로 인셋 영역 좌표계에 매핑해 그린다.
   const map: Mapping = {
     toCanvasX: (x) => dx + ((x - sx) / viewW) * dw,
     toCanvasY: (y) => dy + ((y - sy) / viewH) * dh,
@@ -95,6 +100,34 @@ export function drawComposition(
 
   // 키 입력 오버레이 — 화면 하단 중앙, 카메라 변환과 무관한 고정 좌표.
   if (keyOverlay) drawKeyOverlay(ctx, keyOverlay, W, H)
+}
+
+/**
+ * 노출 창의 서브프레임 카메라들로 카메라 뷰를 겹쳐 누적 평균해 방향성 모션 블러를 만든다.
+ * 각 뷰는 인셋 영역(dw×dh)을 불투명 프레임으로 덮으므로, i번째를 alpha=1/(i+1)로 순서대로
+ * 그리면 정확히 균등 평균이 된다(러닝 평균): 배경이 새지 않고 콘텐츠 영역만 블러된다.
+ * 줌 궤적이면 방사형, 팬 궤적이면 방향성 스미어가 궤적에서 자연히 나온다.
+ */
+function drawMotionBlurred(
+  ctx: Ctx,
+  image: CanvasImageSource,
+  cams: CameraTransform[],
+  W: number,
+  H: number,
+  dx: number,
+  dy: number,
+  dw: number,
+  dh: number
+): void {
+  ctx.save()
+  for (let i = 0; i < cams.length; i++) {
+    const cam = cams[i]
+    const viewW = W / cam.scale
+    const viewH = H / cam.scale
+    ctx.globalAlpha = 1 / (i + 1)
+    ctx.drawImage(image, cam.x - viewW / 2, cam.y - viewH / 2, viewW, viewH, dx, dy, dw, dh)
+  }
+  ctx.restore()
 }
 
 /** 배경을 채운다 — 단색 또는 선형 그라디언트(angle deg). */

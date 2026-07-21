@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { EditorContext } from '../../../shared/ipc'
 import {
   deriveRecipe,
+  MOTION_BLUR_DEFAULTS,
   sampleComposition,
   type FrameSize,
   type RenderRecipe
@@ -203,7 +204,8 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
       const ctx = canvas.getContext('2d')
       if (!ctx) return
       // 카메라·커서·클릭·배경/패딩·배지를 한 번에 샘플링해 공용 그리기 함수로 그린다.
-      const comp = sampleComposition(recipe, video.currentTime * 1000)
+      // 명목 fps로 전환 구간 모션 블러를 함께 그려 export와 같은 인상을 미리 보여 준다.
+      const comp = sampleComposition(recipe, video.currentTime * 1000, MOTION_BLUR_DEFAULTS.previewFps)
       drawComposition(ctx, video, comp, recipe.source)
       // 첫 유효 프레임이 그려지면 썸네일을 한 번 캡처해 폴더에 캐시한다(최근 목록용).
       if (!thumbSavedRef.current && video.readyState >= 2 && video.videoWidth > 0) {

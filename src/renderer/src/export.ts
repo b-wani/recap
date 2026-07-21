@@ -147,7 +147,8 @@ export async function renderRecipeToGif(
       // 출력 타임라인은 0부터지만, 원본에서는 트림 시작 지점부터 샘플링·시크한다.
       const sourceMs = recipe.trim.startMs + tSec * 1000
       await seekVideo(video, sourceMs / 1000)
-      const comp = sampleComposition(recipe, sourceMs)
+      // 전환 구간 모션 블러는 출력 fps로 노출 창을 잡는다(미리보기와 같은 그리기 경로).
+      const comp = sampleComposition(recipe, sourceMs, effectiveFps)
       drawComposition(ctx, video, comp, recipe.source)
 
       const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -236,7 +237,8 @@ export async function renderRecipeToMp4(
       // 출력 타임라인은 0부터지만, 원본에서는 트림 시작 지점부터 샘플링·시크한다.
       const sourceMs = recipe.trim.startMs + tSec * 1000
       await seekVideo(video, sourceMs / 1000)
-      const comp = sampleComposition(recipe, sourceMs)
+      // 전환 구간 모션 블러는 출력 fps로 노출 창을 잡는다(미리보기와 같은 그리기 경로).
+      const comp = sampleComposition(recipe, sourceMs, config.fps)
       drawComposition(ctx, video, comp, recipe.source)
 
       // 캔버스 현재 상태를 프레임으로 캡처·인코딩한다. add의 Promise를 await해 백프레셔를 지킨다.
