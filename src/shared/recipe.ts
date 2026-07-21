@@ -35,7 +35,7 @@ export interface PanKeyframe {
  * 네 지점으로 확대의 생애를 표현한다: 줌인 시작 → 완전 줌인 → 줌아웃 시작 → 완전 줌아웃.
  */
 export interface ZoomSegment {
-  /** 줌인이 시작되는 시각 (ms). 첫 클릭 rampInMs 전. */
+  /** 줌인이 시작되는 시각 (ms). 첫 클릭에서 스프링 램프 길이(ZOOM_RAMP_MS)만큼 전. */
   startMs: number
   /** 완전 줌인에 도달하는 시각 (ms). 첫 클릭 시각. */
   fullInAtMs: number
@@ -268,15 +268,70 @@ export const ZOOM_DEFAULTS = {
   scale: 2.0,
   /** 선택 가능한 이산 배율 (전역·구간 공통). setZoomSegmentScale이 이 중 가장 가까운 값으로 스냅한다. */
   scales: [1.5, 2.0, 2.5] as readonly number[],
-  /** 클릭 rampInMs 전부터 줌인 시작 (SPEC 2: 0.5초 전). */
-  rampInMs: 500,
   /** 마지막 활동 holdAfterMs 후 줌아웃 시작 (SPEC 5: 2초 후). */
   holdAfterMs: 2000,
-  /** 줌아웃에 걸리는 시간 (튜닝값). */
-  rampOutMs: 500,
   /** 클릭 간격이 이 이내면 한 줌 구간으로 병합 (SPEC 4: 3초 이내 줌 유지). */
   mergeGapMs: 3000
 } as const
+
+/**
+ * 줌 램프 이징 스프링 (결정 #142 — Screen Studio "Slow" 프리셋).
+ * 감쇠비 ζ = friction / (2·√(tension·mass)) = 26 / (2·√120) ≈ 1.19 → 과감쇠.
+ * 오버슈트 없이 "안착하듯" 멈추는 감쇠를 재현한다 — 대칭 smoothstep 이징을 대체한다.
+ */
+export const ZOOM_SPRING = { tension: 120, friction: 26, mass: 1 } as const
+
+/** 스프링 안착 판정 임계 — 목표(1)와의 거리·속도가 모두 이 값 미만이면 정지로 본다. */
+const SPRING_REST = 0.001
+/** 적분 스텝(ms). 1ms 고정 스텝 준-암시적 오일러라 난수·상태 없이 결정론적이다. */
+const SPRING_STEP_MS = 1
+
+/**
+ * 스프링 궤적을 목표 1로 적분한다(x0=0, v0=0). 준-암시적 오일러 고정 스텝 —
+ * 난수·상태 없는 순수 계산이라 결정론적이다. 안착(목표와의 거리·속도 < SPRING_REST)에서
+ * 멈추고, 마지막 표본을 정확히 1로 스냅해 램프 경계에서 배율이 목표에 정확히 닿게 한다.
+ */
+function integrateZoomSpring(): number[] {
+  const { tension, friction, mass } = ZOOM_SPRING
+  const dt = SPRING_STEP_MS / 1000
+  let x = 0
+  let v = 0
+  const trajectory = [0]
+  // 발산·미안착 방어용 상한(10s). 과감쇠라 실제로는 훨씬 일찍 멈춘다.
+  const maxSteps = Math.ceil(10000 / SPRING_STEP_MS)
+  for (let i = 0; i < maxSteps; i++) {
+    const a = (-tension * (x - 1) - friction * v) / mass
+    v += a * dt
+    x += v * dt
+    trajectory.push(x)
+    if (Math.abs(1 - x) < SPRING_REST && Math.abs(v) < SPRING_REST) break
+  }
+  trajectory[trajectory.length - 1] = 1
+  return trajectory
+}
+
+const SPRING_TRAJECTORY = integrateZoomSpring()
+
+/**
+ * 스프링이 안착하기까지 걸리는 램프 길이(ms). 고정 rampIn/Out(각 500ms)를 대체한다 —
+ * 이제 램프 길이는 스프링이 멈추는 데 걸리는 시간으로 정해진다(결정 #142). 과감쇠라
+ * 초반에 대부분 도달(≈0.5s에 ~93%)하고 꼬리만 느리게 붙어, 체감 줌인은 ≈0.5s로 느껴진다.
+ */
+export const ZOOM_RAMP_MS = (SPRING_TRAJECTORY.length - 1) * SPRING_STEP_MS
+
+/**
+ * 스프링 이징 — 정규화 진행도 p∈[0,1]을 과감쇠 스프링의 안착 곡선(0→1)으로 매핑한다.
+ * 미리 적분한 궤적을 선형 보간으로 읽는다. p=0→0, p=1→1(정확), 단조 증가·오버슈트 없음.
+ * 기존 smoothstep ease(p)의 드롭인 대체 — 램프 창을 스프링 안착 곡선으로 채운다.
+ */
+export function springEase(p: number): number {
+  const c = clamp(p, 0, 1)
+  const idx = c * (SPRING_TRAJECTORY.length - 1)
+  const lo = Math.floor(idx)
+  const hi = Math.ceil(idx)
+  if (lo === hi) return SPRING_TRAJECTORY[lo]
+  return SPRING_TRAJECTORY[lo] + (SPRING_TRAJECTORY[hi] - SPRING_TRAJECTORY[lo]) * (idx - lo)
+}
 
 /**
  * 커서 튜닝 수치 (SPEC "커서 렌더링"). 규칙만 테스트로 고정하고 값은 실험으로 정한다.
@@ -392,10 +447,10 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
     const first = group[0]
     const last = group[group.length - 1]
     zoomSegments.push({
-      startMs: Math.max(0, first.t - ZOOM_DEFAULTS.rampInMs),
+      startMs: Math.max(0, first.t - ZOOM_RAMP_MS),
       fullInAtMs: first.t,
       holdEndMs: last.t + ZOOM_DEFAULTS.holdAfterMs,
-      endMs: last.t + ZOOM_DEFAULTS.holdAfterMs + ZOOM_DEFAULTS.rampOutMs,
+      endMs: last.t + ZOOM_DEFAULTS.holdAfterMs + ZOOM_RAMP_MS,
       // 유도 시점의 전역 배율을 이 구간의 기본 배율로 삼는다. 이후 에디터에서 구간별로 바꾼다.
       scale: zoomScale,
       keyframes: panKeyframes(group, zoomScale, source)
@@ -491,7 +546,7 @@ export function sampleRecipe(recipe: RenderRecipe, t: number): CameraTransform {
   if (t < seg.fullInAtMs) {
     // 줌인 ramp: scale 1 → seg.scale, 중심은 첫 클릭.
     const p = seg.fullInAtMs > seg.startMs ? (t - seg.startMs) / (seg.fullInAtMs - seg.startMs) : 1
-    scale = 1 + (seg.scale - 1) * ease(p)
+    scale = 1 + (seg.scale - 1) * springEase(p)
     const k = seg.keyframes[0]
     center = { x: k.x, y: k.y }
   } else if (t <= seg.holdEndMs) {
@@ -501,7 +556,7 @@ export function sampleRecipe(recipe: RenderRecipe, t: number): CameraTransform {
   } else {
     // 줌아웃 ramp: scale seg.scale → 1, 중심은 마지막 클릭.
     const p = seg.endMs > seg.holdEndMs ? (t - seg.holdEndMs) / (seg.endMs - seg.holdEndMs) : 1
-    scale = 1 + (seg.scale - 1) * (1 - ease(p))
+    scale = 1 + (seg.scale - 1) * (1 - springEase(p))
     const k = seg.keyframes[seg.keyframes.length - 1]
     center = { x: k.x, y: k.y }
   }
@@ -636,12 +691,6 @@ function nearestKeyframe(kf: CursorKeyframe[], t: number): CursorKeyframe {
 /** 확대 없음 — 프레임 전체를 중앙에 둔다. */
 function neutral(source: FrameSize): CameraTransform {
   return { scale: 1, x: source.width / 2, y: source.height / 2 }
-}
-
-/** smoothstep 이징 — 경계(0,1)에서 값이 정확히 0/1이고 기울기가 0이라 부드럽다. */
-function ease(p: number): number {
-  const c = clamp(p, 0, 1)
-  return c * c * (3 - 2 * c)
 }
 
 /** 키프레임 사이 카메라 중심을 선형 보간한다. 양끝 밖에서는 끝 키프레임에 고정. */

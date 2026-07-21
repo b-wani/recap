@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { describe, it, expect } from 'vitest'
-import { deriveRecipe, sampleRecipe } from './recipe'
+import { deriveRecipe, sampleRecipe, ZOOM_RAMP_MS } from './recipe'
 import {
   deleteZoomSegment,
   moveZoomSegment,
@@ -20,8 +20,10 @@ function loadTrack(name: string): EventTrack {
 }
 
 // 원본 1000×800, 배율 2.0으로 유도한 레시피(recipe.sample.test와 동일 픽스처)를 편집한다.
-// 구간0: start 500 · fullIn 1000 · holdEnd 4500 · end 5000, 클릭 (400,300)→(420,310)
-// 구간1: start 7500 · fullIn 8000 · holdEnd 10000 · end 10500, 클릭 (800,600)
+// 램프 길이는 스프링 안착 기반(ZOOM_RAMP_MS≈1516). 첫 클릭(1000)은 램프보다 일러 seg0의
+// startMs가 0으로 클램핑된다.
+// 구간0: start 0 · fullIn 1000 · holdEnd 4500 · end 4500+RAMP, 클릭 (400,300)→(420,310)
+// 구간1: start 8000-RAMP · fullIn 8000 · holdEnd 10000 · end 10000+RAMP, 클릭 (800,600)
 // 트림: [0, 12000]
 const source = { width: 1000, height: 800 }
 const base = deriveRecipe(loadTrack('event-track-clicks.json'), { source })
@@ -57,28 +59,30 @@ describe('경량 편집: 줌 구간 이동', () => {
   it('네 앵커와 키프레임 시각을 함께 민다', () => {
     const edited = moveZoomSegment(base, 0, 1000)
     const seg = edited.zoomSegments[0]
-    expect(seg.startMs).toBe(1500)
+    expect(seg.startMs).toBe(1000) // 0 + 1000
     expect(seg.fullInAtMs).toBe(2000)
     expect(seg.holdEndMs).toBe(5500)
-    expect(seg.endMs).toBe(6000)
+    expect(seg.endMs).toBe(4500 + ZOOM_RAMP_MS + 1000)
     // 둘째 클릭(420,310)은 첫 클릭 뷰 안이라 팬 키프레임이 없다 — 유일한 키프레임 시각도 함께 밀린다.
     expect(seg.keyframes).toEqual([{ t: 2000, x: 400, y: 300 }])
   })
 
   it('앞으로 넘치게 밀면 startMs 0에서 멈춘다', () => {
-    // 구간0 startMs=500이므로 -2000을 주면 -500만 적용된다.
-    const edited = moveZoomSegment(base, 0, -2000)
-    const seg = edited.zoomSegments[0]
+    // 구간1 startMs=8000-RAMP이므로 크게 앞으로 밀면 딱 0에서 멈추고 end도 같은 양만큼 당겨진다.
+    const edited = moveZoomSegment(base, 1, -100000)
+    const seg = edited.zoomSegments[1]
     expect(seg.startMs).toBe(0)
-    expect(seg.endMs).toBe(4500) // 5000 - 500
+    // shift = -(8000-RAMP) → end = (10000+RAMP) - (8000-RAMP) = 2000 + 2·RAMP.
+    expect(seg.endMs).toBe(2000 + 2 * ZOOM_RAMP_MS)
   })
 
   it('뒤로 넘치게 밀면 endMs가 durationMs에서 멈춘다', () => {
-    // 구간1 endMs=10500, durationMs=12000이므로 +5000을 주면 +1500만 적용된다.
+    // 구간1 endMs=10000+RAMP, durationMs=12000이므로 +5000을 주면 (2000-RAMP)만 적용된다.
     const edited = moveZoomSegment(base, 1, 5000)
     const seg = edited.zoomSegments[1]
+    const shift = 12000 - (10000 + ZOOM_RAMP_MS)
     expect(seg.endMs).toBe(12000)
-    expect(seg.startMs).toBe(9000) // 7500 + 1500
+    expect(seg.startMs).toBe(8000 - ZOOM_RAMP_MS + shift)
   })
 
   it('이동은 미리보기 샘플링에 반영된다', () => {
@@ -90,37 +94,39 @@ describe('경량 편집: 줌 구간 이동', () => {
 
 describe('경량 편집: 줌 구간 길이 조절', () => {
   it("앞 가장자리('start')는 startMs·fullInAtMs를 함께 옮긴다", () => {
-    // -300: 줌인을 300ms 일찍 시작. holdEnd·end는 그대로.
-    const edited = resizeZoomSegment(base, 0, 'start', -300)
-    const seg = edited.zoomSegments[0]
-    expect(seg.startMs).toBe(200)
-    expect(seg.fullInAtMs).toBe(700)
-    expect(seg.holdEndMs).toBe(4500)
-    expect(seg.endMs).toBe(5000)
+    // 구간1(start=8000-RAMP, 앞쪽 여유 있음)에서 -300: 줌인을 300ms 일찍 시작. holdEnd·end는 그대로.
+    const edited = resizeZoomSegment(base, 1, 'start', -300)
+    const seg = edited.zoomSegments[1]
+    expect(seg.startMs).toBe(8000 - ZOOM_RAMP_MS - 300)
+    expect(seg.fullInAtMs).toBe(7700)
+    expect(seg.holdEndMs).toBe(10000)
+    expect(seg.endMs).toBe(10000 + ZOOM_RAMP_MS)
   })
 
   it("뒤 가장자리('end')는 holdEndMs·endMs를 함께 옮겨 유지를 늘린다", () => {
     const edited = resizeZoomSegment(base, 0, 'end', 1000)
     const seg = edited.zoomSegments[0]
-    expect(seg.startMs).toBe(500)
+    expect(seg.startMs).toBe(0)
     expect(seg.fullInAtMs).toBe(1000)
     expect(seg.holdEndMs).toBe(5500)
-    expect(seg.endMs).toBe(6000)
+    expect(seg.endMs).toBe(4500 + ZOOM_RAMP_MS + 1000)
   })
 
   it("'start'는 fullInAtMs가 holdEndMs를 넘지 않게 클램핑한다", () => {
     const edited = resizeZoomSegment(base, 0, 'start', 100000)
     const seg = edited.zoomSegments[0]
     // fullInAtMs는 holdEndMs - 1(=4499)에서 멈추고, startMs는 같은 양만큼 이동.
+    // 구간0 start=0, fullIn=1000 → shift = 4499-1000 = 3499.
     expect(seg.fullInAtMs).toBe(4499)
-    expect(seg.startMs).toBe(3999) // 500 + 3499
+    expect(seg.startMs).toBe(3499) // 0 + 3499
   })
 
   it("'end'는 endMs가 durationMs를 넘지 않게 클램핑한다", () => {
     const edited = resizeZoomSegment(base, 1, 'end', 100000)
     const seg = edited.zoomSegments[1]
+    const shift = 12000 - (10000 + ZOOM_RAMP_MS)
     expect(seg.endMs).toBe(12000)
-    expect(seg.holdEndMs).toBe(11500) // 10000 + 1500
+    expect(seg.holdEndMs).toBe(10000 + shift)
   })
 
   it('유지 연장은 샘플링에 반영된다', () => {
@@ -144,10 +150,10 @@ describe('경량 편집: 구간별 줌 배율 (#23)', () => {
   it('시간 앵커와 팬 키프레임을 보존한다 (배율만 바뀐다)', () => {
     const edited = setZoomSegmentScale(base, 0, 2.5)
     const seg = edited.zoomSegments[0]
-    expect(seg.startMs).toBe(500)
+    expect(seg.startMs).toBe(0)
     expect(seg.fullInAtMs).toBe(1000)
     expect(seg.holdEndMs).toBe(4500)
-    expect(seg.endMs).toBe(5000)
+    expect(seg.endMs).toBe(4500 + ZOOM_RAMP_MS)
     expect(seg.keyframes).toEqual(base.zoomSegments[0].keyframes)
   })
 

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { describe, it, expect } from 'vitest'
-import { deriveRecipe, ZOOM_DEFAULTS } from './recipe'
+import { deriveRecipe, ZOOM_DEFAULTS, ZOOM_RAMP_MS } from './recipe'
 import type { EventTrack } from './event-track'
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
@@ -22,11 +22,12 @@ describe('자동 효과 유도: 이벤트 트랙 → 렌더 레시피', () => {
 
     const [seg0, seg1] = recipe.zoomSegments
 
-    // 구간0: 첫 클릭 0.5초 전 줌인 시작, 마지막 활동 2초 후 줌아웃, +0.5초 완전 해제.
-    expect(seg0.startMs).toBe(1000 - ZOOM_DEFAULTS.rampInMs)
+    // 구간0: 첫 클릭에서 스프링 램프만큼 전 줌인 시작, 마지막 활동 2초 후 줌아웃, +램프 완전 해제.
+    // 첫 클릭(1000)이 램프 길이보다 이르면 0으로 클램핑된다.
+    expect(seg0.startMs).toBe(Math.max(0, 1000 - ZOOM_RAMP_MS))
     expect(seg0.fullInAtMs).toBe(1000)
     expect(seg0.holdEndMs).toBe(2500 + ZOOM_DEFAULTS.holdAfterMs)
-    expect(seg0.endMs).toBe(2500 + ZOOM_DEFAULTS.holdAfterMs + ZOOM_DEFAULTS.rampOutMs)
+    expect(seg0.endMs).toBe(2500 + ZOOM_DEFAULTS.holdAfterMs + ZOOM_RAMP_MS)
     // 둘째 클릭(420,310)은 첫 클릭(400,300)의 확대 뷰 안이라 팬을 만들지 않는다(줌 유지).
     // 활동 시각으로 holdEnd만 늘리고 카메라는 첫 클릭에 머문다.
     expect(seg0.keyframes).toEqual([{ t: 1000, x: 400, y: 300 }])
