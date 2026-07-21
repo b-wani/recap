@@ -6,20 +6,20 @@
  * (영상 + 이벤트 트랙)는 이 층에서 절대 건드리지 않는다 — 편집은 파생 데이터인
  * 레시피만 수정한다.
  *
- * v1 경량 편집의 전부: 줌 구간 삭제/이동/길이 조절, 앞뒤 트리밍.
- * 컷 편집(중간 잘라내기)·속도 조절·자막은 여기에 함수가 없다(SPEC 범위 제외).
+ * 경량 편집의 전부: 줌 구간 삭제/이동/길이 조절, 앞뒤 트리밍(양끝 클립 경계),
+ * 컷(분할)·속도 조절. 자막은 계속 제외(SPEC 범위 밖).
  *
  * UI(타임라인)는 사용자 조작을 이 함수 호출로 옮기고 결과를 미리보기에 그리는
  * 얇은 층이다. 편집 규칙과 경계 처리는 전부 이 모듈 안에 있다.
  */
 
-import { ZOOM_DEFAULTS, type RenderRecipe, type Trim, type ZoomSegment } from './recipe'
+import { nextClipId, SPEED_DEFAULTS, ZOOM_DEFAULTS, type Clip, type RenderRecipe, type ZoomSegment } from './recipe'
 
 /** 줌 구간 시간 앵커의 최소 간격(ms). 이동·길이 조절이 앵커를 뒤엎지 않게 지킨다. */
 const MIN_SPAN_MS = 1
 
-/** 트림 창의 최소 길이(ms). 앞뒤 트림이 서로 지나쳐 창이 사라지는 것을 막는다. */
-const MIN_TRIM_MS = 1
+/** 클립의 최소 source 길이(ms). 트림·분할이 클립을 0/음수 길이로 만들지 않게 지킨다. */
+const MIN_CLIP_MS = 1
 
 /** 지정한 줌 구간을 삭제한다. 원본 녹화는 그대로, 레시피에서 구간만 빠진다. */
 export function deleteZoomSegment(recipe: RenderRecipe, index: number): RenderRecipe {
@@ -128,20 +128,89 @@ function snapScale(scale: number): number {
   )
 }
 
+/** 트림이 잡는 양끝 클립 경계. */
+export type ClipEdge = 'start' | 'end'
+
 /**
- * 앞뒤 트리밍 — 최종 영상으로 남길 원본 시간 창을 정한다. 원본은 불변이고 트림 창만
- * 좁아진다. 창은 [0, durationMs] 안에 있어야 하고 startMs < endMs를 지킨다(최소
- * MIN_TRIM_MS 길이 보장). 이 창은 sampleRecipe가 읽어 미리보기·익스포트에 반영된다.
+ * 앞뒤 트리밍 — 양끝 클립의 경계를 옮겨 최종 영상 범위를 정한다(트림은 클립 시퀀스의 양끝
+ * 경계로 표현된다, 결정 #144 §2). 원본은 불변이다.
+ *
+ * - `'start'`: 첫 클립의 `sourceStartMs`를 옮긴다. [0, 첫 클립 끝 - MIN_CLIP_MS] 범위로 클램핑.
+ * - `'end'`: 마지막 클립의 `sourceEndMs`를 옮긴다. [마지막 클립 시작 + MIN_CLIP_MS, durationMs] 범위로 클램핑.
+ *
+ * 이 경계는 outputDurationMs·sourceAtOutput의 입력이 되어 미리보기·익스포트에 반영된다.
  */
-export function trimRecipe(recipe: RenderRecipe, next: Partial<Trim>): RenderRecipe {
-  const endMs = clamp(next.endMs ?? recipe.trim.endMs, MIN_TRIM_MS, recipe.durationMs)
-  const startMs = clamp(next.startMs ?? recipe.trim.startMs, 0, endMs - MIN_TRIM_MS)
-  return { ...recipe, trim: { startMs, endMs } }
+export function setClipBoundary(recipe: RenderRecipe, edge: ClipEdge, sourceMs: number): RenderRecipe {
+  const clips = recipe.clips
+  if (edge === 'start') {
+    const first = clips[0]
+    const startMs = clamp(sourceMs, 0, first.sourceEndMs - MIN_CLIP_MS)
+    if (startMs === first.sourceStartMs) return recipe
+    return { ...recipe, clips: clips.map((c, i) => (i === 0 ? { ...c, sourceStartMs: startMs } : c)) }
+  }
+  const last = clips[clips.length - 1]
+  const endMs = clamp(sourceMs, last.sourceStartMs + MIN_CLIP_MS, recipe.durationMs)
+  if (endMs === last.sourceEndMs) return recipe
+  return {
+    ...recipe,
+    clips: clips.map((c, i) => (i === clips.length - 1 ? { ...c, sourceEndMs: endMs } : c))
+  }
 }
 
-/** 트림이 반영된 최종 영상 길이(ms). 미리보기 재생 창·익스포트 길이에 쓴다. */
-export function trimmedDurationMs(recipe: RenderRecipe): number {
-  return recipe.trim.endMs - recipe.trim.startMs
+/**
+ * 컷(분할) — 지정 클립을 source 시각 `atSourceMs`에서 둘로 나눈다(결정 #144 §2·§5). 두 조각은
+ * 인접하고(왼쪽 끝 = 오른쪽 시작 = atSourceMs) 원래 속도를 물려받는다. 오른쪽 조각이 새 id를
+ * 받아 이후 index가 밀려도 안정 추적된다. 분할점이 클립 안이 아니거나(양끝 포함) 어느 조각이
+ * MIN_CLIP_MS보다 짧아지면 무시한다. 이어서 한쪽을 deleteClip하면 그 사이가 컷(간극)이 된다.
+ */
+export function splitClip(recipe: RenderRecipe, clipId: string, atSourceMs: number): RenderRecipe {
+  const idx = recipe.clips.findIndex((c) => c.id === clipId)
+  if (idx < 0) return recipe
+  const clip = recipe.clips[idx]
+  if (atSourceMs <= clip.sourceStartMs + MIN_CLIP_MS || atSourceMs >= clip.sourceEndMs - MIN_CLIP_MS) {
+    return recipe
+  }
+  const left: Clip = { ...clip, sourceEndMs: atSourceMs }
+  const right: Clip = {
+    id: nextClipId(recipe.clips),
+    sourceStartMs: atSourceMs,
+    sourceEndMs: clip.sourceEndMs,
+    speed: clip.speed
+  }
+  const clips = [...recipe.clips.slice(0, idx), left, right, ...recipe.clips.slice(idx + 1)]
+  return { ...recipe, clips }
+}
+
+/**
+ * 클립 삭제 — 지정 클립을 시퀀스에서 뺀다(중간 클립을 빼면 그 자리가 컷 간극이 된다). 출력이
+ * 사라지지 않도록 마지막 남은 클립 1개는 삭제하지 않는다(무시). 없는 id도 무시한다.
+ */
+export function deleteClip(recipe: RenderRecipe, clipId: string): RenderRecipe {
+  if (recipe.clips.length <= 1) return recipe
+  const clips = recipe.clips.filter((c) => c.id !== clipId)
+  if (clips.length === recipe.clips.length) return recipe
+  return { ...recipe, clips }
+}
+
+/**
+ * 클립 속도 조절 — 지정 클립의 재생 배율을 바꾼다(결정 #144 §4). 허용 이산값
+ * (SPEED_DEFAULTS.speeds) 중 가장 가까운 값으로 스냅한다. 배율은 그 구간의 모든 것(줌·팬·커서·
+ * 클릭·키 오버레이)을 함께 압축한다 — source-앵커링이 매핑에서 공짜로 준다(샘플러 불변). 없는
+ * id·같은 값은 무시한다.
+ */
+export function setClipSpeed(recipe: RenderRecipe, clipId: string, speed: number): RenderRecipe {
+  const idx = recipe.clips.findIndex((c) => c.id === clipId)
+  if (idx < 0) return recipe
+  const snapped = snapSpeed(speed)
+  if (snapped === recipe.clips[idx].speed) return recipe
+  return { ...recipe, clips: recipe.clips.map((c, i) => (i === idx ? { ...c, speed: snapped } : c)) }
+}
+
+/** 임의 배속을 허용 이산값 중 가장 가까운 값으로 스냅한다. */
+function snapSpeed(speed: number): number {
+  return SPEED_DEFAULTS.speeds.reduce((best, s) =>
+    Math.abs(s - speed) < Math.abs(best - speed) ? s : best
+  )
 }
 
 function replaceSegment(recipe: RenderRecipe, index: number, seg: ZoomSegment): RenderRecipe {

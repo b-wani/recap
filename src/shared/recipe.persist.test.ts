@@ -16,11 +16,11 @@ const source = { width: 1000, height: 800 }
 const recipe = deriveRecipe(loadTrack('event-track-clicks.json'), { source })
 
 describe('레시피 직렬화 왕복: 저장 → 로드 후 동일한 샘플링 출력 (AC4)', () => {
-  it('왕복한 레시피가 원본과 구조적으로 같다 (줌·팬·커서·트림·배경/패딩·배지 전부)', () => {
+  it('왕복한 레시피가 원본과 구조적으로 같다 (줌·팬·커서·클립·배경/패딩·배지 전부)', () => {
     expect(parseRecipe(serializeRecipe(recipe))).toEqual(recipe)
     // 확장 필드가 실제로 담겨 있어야 왕복이 의미가 있다.
     expect(recipe.cursor.keyframes.length).toBeGreaterThan(0)
-    expect(recipe.trim).toEqual({ startMs: 0, endMs: recipe.durationMs })
+    expect(recipe.clips).toEqual([{ id: 'c1', sourceStartMs: 0, sourceEndMs: recipe.durationMs, speed: 1 }])
     expect(typeof recipe.background.color).toBe('string')
     expect(typeof recipe.badge.visible).toBe('boolean')
   })
@@ -47,12 +47,16 @@ describe('레시피 직렬화 왕복: 저장 → 로드 후 동일한 샘플링 
     }
   })
 
-  it('사용자가 편집한 레시피(줌 삭제·이동, 트림, 배경/패딩, 배지)도 왕복 후 그대로 복원된다', () => {
+  it('사용자가 편집한 레시피(줌 삭제·이동, 컷·속도, 배경/패딩, 배지)도 왕복 후 그대로 복원된다', () => {
     const edited = {
       ...recipe,
       zoomScale: 2.5,
       zoomSegments: [recipe.zoomSegments[1]], // 첫 구간 삭제, 둘째만 남김
-      trim: { startMs: 500, endMs: recipe.durationMs - 500 }, // 앞뒤 트리밍
+      // 앞뒤 트리밍 + 컷(간극) + 속도 — 클립 시퀀스로 표현.
+      clips: [
+        { id: 'c1', sourceStartMs: 500, sourceEndMs: 3000, speed: 1 },
+        { id: 'c2', sourceStartMs: 6000, sourceEndMs: recipe.durationMs - 500, speed: 2 }
+      ],
       background: {
         type: 'color' as const,
         color: '#ff8800',

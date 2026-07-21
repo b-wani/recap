@@ -21,7 +21,6 @@ import type {
   KeystrokeTrack,
   PanKeyframe,
   RenderRecipe,
-  Trim,
   ZoomSegment
 } from './recipe'
 
@@ -76,7 +75,6 @@ function validateRecipe(raw: unknown): RenderRecipe {
   if (!isNum(r.durationMs)) throw new RecipeParseError('recipe.durationMs 누락')
   if (!Array.isArray(r.zoomSegments)) throw new RecipeParseError('recipe.zoomSegments 누락')
 
-  const trim = validateTrim(r.trim)
   return {
     source: { width: source.width, height: source.height },
     // 논리 뷰포트(포인트)는 선택적 — v1 저장본엔 없다. 있으면 검증해 보존한다.
@@ -86,9 +84,8 @@ function validateRecipe(raw: unknown): RenderRecipe {
     // v1 레시피는 구간 배율이 없다 — 저장된 전역 배율로 채운다(스토리 25).
     zoomSegments: r.zoomSegments.map((s) => validateSegment(s, r.zoomScale as number)),
     cursor: validateCursor(r.cursor),
-    trim,
-    // 구버전 레시피엔 clips가 없다 — 검증된 trim에서 클립 1개를 합성한다(마이그레이션 #157).
-    clips: validateClips(r.clips, trim),
+    // 구버전 레시피엔 clips가 없다 — 구버전 trim(또는 전 구간)에서 클립 1개를 합성한다(#164).
+    clips: validateClips(r.clips, r),
     background: validateBackground(r.background),
     badge: validateBadge(r.badge),
     keystrokes: validateKeystrokes(r.keystrokes)
@@ -160,21 +157,27 @@ function validateViewport(raw: unknown): FrameSize {
   return { width: v.width, height: v.height }
 }
 
-function validateTrim(raw: unknown): Trim {
-  const t = asObject(raw, 'recipe.trim')
-  if (!isNum(t.startMs) || !isNum(t.endMs)) throw new RecipeParseError('recipe.trim: startMs/endMs 누락')
-  return { startMs: t.startMs, endMs: t.endMs }
-}
-
 /**
- * 클립 시퀀스를 검증한다(#157). clips가 없으면(구버전) trim에서 클립 1개를 합성해 조용히
- * 상향한다 — persist의 graceful 로드 철학. clips가 있으면 각 클립을 검증하고 시퀀스 불변식
- * (source 오름차순·비겹침)까지 확인한다. 손상된 시퀀스는 조용히 통과시키지 않고 던진다.
+ * 클립 시퀀스를 검증한다(#157·#164). clips가 없으면(구버전) 구버전 `trim` 창(있으면)에서, 없으면
+ * 전 구간 [0, durationMs]에서 클립 1개를 합성해 조용히 상향한다 — persist의 graceful 로드 철학.
+ * (trim은 #164에서 제거됐지만, 구버전 파일을 읽어 클립으로 옮기는 이 경로에만 raw로 남는다.)
+ * clips가 있으면 각 클립을 검증하고 시퀀스 불변식(source 오름차순·비겹침)까지 확인한다. 손상된
+ * 시퀀스는 조용히 통과시키지 않고 던진다.
  */
-function validateClips(raw: unknown, trim: Trim): Clip[] {
+function validateClips(raw: unknown, r: Record<string, unknown>): Clip[] {
   if (raw === undefined || raw === null) {
-    // 구버전: trim 창을 덮는 클립 1개로 합성.
-    return [{ id: nextClipId([]), sourceStartMs: trim.startMs, sourceEndMs: trim.endMs, speed: 1 }]
+    // 구버전: trim 창(있으면), 없으면 전 구간을 덮는 클립 1개로 합성.
+    let startMs = 0
+    let endMs = isNum(r.durationMs) ? r.durationMs : 0
+    const t = r.trim
+    if (typeof t === 'object' && t !== null) {
+      const tt = t as Record<string, unknown>
+      if (isNum(tt.startMs) && isNum(tt.endMs)) {
+        startMs = tt.startMs
+        endMs = tt.endMs
+      }
+    }
+    return [{ id: nextClipId([]), sourceStartMs: startMs, sourceEndMs: endMs, speed: 1 }]
   }
   if (!Array.isArray(raw)) throw new RecipeParseError('recipe.clips: 배열이 아님')
   if (raw.length === 0) throw new RecipeParseError('recipe.clips: 클립이 최소 1개 필요')

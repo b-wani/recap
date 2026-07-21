@@ -98,20 +98,10 @@ export interface CursorTrack {
 }
 
 /**
- * 트림 구간 — 최종 영상으로 남길 원본의 시간 범위(ms). 앞뒤 트리밍은 이 창을 좁힌다.
- * 원본 좌표계 기준이며, 창 밖 구간은 샘플링·미리보기·익스포트에서 제외된다.
- */
-export interface Trim {
-  startMs: number
-  endMs: number
-}
-
-/**
  * 클립 — 최종 영상으로 남기는 원본의 한 조각. `[sourceStartMs, sourceEndMs)` source 구간과
  * 재생 속도 배율(speed)을 가진다. 클립들은 source 오름차순·비겹침으로 늘어서 클립 시퀀스를
  * 이루며, 그 사이 간극이 컷(제거된 구간)이다. 출력 타임라인은 이 클립들을 이어 붙인 것이다.
- *
- * (EXPAND 단계 #157: `trim`과 병존한다 — trim 제거·컷 UI는 후속 #164.)
+ * 트림(앞뒤 잘라내기)은 양끝 클립의 경계로 표현된다.
  */
 export interface Clip {
   /** 안정적 식별자(UI 선택·편집 대상). split이 index를 밀어내도 클립을 추적한다. */
@@ -183,7 +173,7 @@ export interface BadgeConfig {
 
 /**
  * 렌더 레시피 — 녹화를 최종 영상으로 합성하는 파라미터.
- * 자동 줌 + 팬 + 커서 + 트림 + 배경/패딩·배지를 다룬다.
+ * 자동 줌 + 팬 + 커서 + 클립 시퀀스 + 배경/패딩·배지를 다룬다.
  */
 export interface RenderRecipe {
   source: FrameSize
@@ -199,12 +189,10 @@ export interface RenderRecipe {
   zoomSegments: ZoomSegment[]
   /** 커서 스무딩·클릭 하이라이트의 입력. */
   cursor: CursorTrack
-  /** 최종 영상으로 남길 원본 시간 범위. 기본은 전 구간 [0, durationMs]. */
-  trim: Trim
   /**
    * 클립 시퀀스 — source 오름차순·비겹침으로 늘어선 클립들. 출력 타임라인은 이들을 이어
-   * 붙인 것이다. 신규 유도 레시피는 전체를 덮는 클립 1개(= trim 창)를 가진다. output↔source
-   * 매핑(outputDurationMs·sourceAtOutput)의 입력이다. (EXPAND #157: trim과 병존.)
+   * 붙인 것이다. 신규 유도 레시피는 전체를 덮는 클립 1개를 가지며, 앞뒤 트림은 양끝 클립
+   * 경계로 표현된다. output↔source 매핑(outputDurationMs·sourceAtOutput)의 입력이다.
    */
   clips: Clip[]
   /** 배경/패딩 스타일. */
@@ -317,6 +305,17 @@ export const ZOOM_DEFAULTS = {
   holdAfterMs: 2000,
   /** 클릭 간격이 이 이내면 한 줌 구간으로 병합 (SPEC 4: 3초 이내 줌 유지). */
   mergeGapMs: 3000
+} as const
+
+/**
+ * 클립 속도 튜닝 수치 (결정 #144 §4 — 클립 speed 편집). 규칙만 테스트로 고정하고 값은
+ * 실험으로 정한다(ZOOM_DEFAULTS.scales 선례). setClipSpeed가 이 중 가장 가까운 값으로 스냅한다.
+ */
+export const SPEED_DEFAULTS = {
+  /** 기본 속도(1 = 원속). */
+  speed: 1,
+  /** 선택 가능한 이산 배속. */
+  speeds: [0.5, 1, 1.5, 2] as readonly number[]
 } as const
 
 /**
@@ -577,8 +576,7 @@ export function deriveRecipe(track: EventTrack, config: DeriveConfig): RenderRec
     durationMs: track.durationMs,
     zoomSegments,
     cursor,
-    trim: { startMs: 0, endMs: track.durationMs },
-    // 클립 시퀀스: 갓 유도한 레시피는 전체(= trim 창)를 덮는 클립 1개다.
+    // 클립 시퀀스: 갓 유도한 레시피는 전체를 덮는 클립 1개다.
     clips: [{ id: nextClipId([]), sourceStartMs: 0, sourceEndMs: track.durationMs, speed: 1 }],
     background: {
       type: COMPOSITE_DEFAULTS.backgroundType,
@@ -627,9 +625,6 @@ function panKeyframes(group: MouseSample[], scale: number, source: FrameSize): P
  * 이징으로 잇고, 프레임을 벗어나지 않게 중심을 클램핑한다(SPEC 3).
  */
 export function sampleRecipe(recipe: RenderRecipe, t: number): CameraTransform {
-  // 트림 창 밖의 시각은 최종 영상에 존재하지 않는다 — 원본 그대로로 되돌린다.
-  if (t < recipe.trim.startMs || t > recipe.trim.endMs) return neutral(recipe.source)
-
   const seg = recipe.zoomSegments.find((s) => t >= s.startMs && t <= s.endMs)
   if (!seg) return neutral(recipe.source)
 
@@ -661,17 +656,18 @@ export function sampleRecipe(recipe: RenderRecipe, t: number): CameraTransform {
  * 시각 t의 모션 블러 서브프레임 — 노출 창(셔터) 동안의 카메라 궤적을 균등 표본한 카메라 목록.
  * 그리기 층이 이 카메라들로 뷰를 겹쳐 누적 평균하면 전환 구간에 방향성(줌은 방사형) 블러가
  * 생긴다. 창 양끝 카메라 사이 콘텐츠의 화면 이동이 서브픽셀 미만이면(정지·팬 없는 hold) null —
- * 곧 블러 0. 노출 창 = shutter × 1프레임(fps로 프레임 간격 결정), t 중심. 창은 트림 안으로
- * 가두어(콘텐츠 밖은 이동으로 치지 않음) 트림 경계에서 가짜 블러가 튀지 않게 한다.
+ * 곧 블러 0. 노출 창 = shutter × 1프레임(fps로 프레임 간격 결정), t 중심. 창은 클립 시퀀스의
+ * source 스팬 안으로 가두어(콘텐츠 밖은 이동으로 치지 않음) 스팬 경계에서 가짜 블러가 튀지 않게 한다.
  */
 export function sampleMotionBlur(recipe: RenderRecipe, t: number, fps: number): CameraTransform[] | null {
   if (fps <= 0) return null
-  if (t < recipe.trim.startMs || t > recipe.trim.endMs) return null
+  const span = sourceSpan(recipe)
+  if (t < span.startMs || t > span.endMs) return null
 
   const frameMs = 1000 / fps
   const half = (MOTION_BLUR_DEFAULTS.shutter * frameMs) / 2
-  const t0 = Math.max(recipe.trim.startMs, t - half)
-  const t1 = Math.min(recipe.trim.endMs, t + half)
+  const t0 = Math.max(span.startMs, t - half)
+  const t1 = Math.min(span.endMs, t + half)
   if (t1 <= t0) return null
 
   const camStart = sampleRecipe(recipe, t0)
@@ -719,13 +715,9 @@ function maxContentShiftPx(a: CameraTransform, b: CameraTransform, source: Frame
  * 카메라 변환 + 스무딩된 커서 + (있다면) 클릭 하이라이트. 계산은 전부 여기(순수 층)에서 한다.
  */
 export function sampleFrame(recipe: RenderRecipe, t: number): FrameSample {
-  // 트림 창 밖의 시각은 최종 영상에 존재하지 않는다 — 카메라·커서·클릭 모두 비운다.
-  if (t < recipe.trim.startMs || t > recipe.trim.endMs) {
-    return { camera: neutral(recipe.source), cursor: null, click: null }
-  }
   return {
     camera: sampleRecipe(recipe, t),
-    cursor: sampleCursor(recipe.cursor, t, recipe.trim),
+    cursor: sampleCursor(recipe.cursor, t, sourceSpan(recipe)),
     click: sampleClick(recipe.cursor, t)
   }
 }
@@ -765,6 +757,16 @@ export function sampleComposition(recipe: RenderRecipe, t: number, fps?: number)
  * 단조 증가하는 piecewise-linear 매핑이 된다. 컷(클립 간극)은 자연히 건너뛰고, speed는 자연히
  * 압축된다. core(sampleComposition(recipe, sourceT))는 이 값을 몰라도 되며 불변이다.
  */
+
+/**
+ * 클립 시퀀스가 덮는 source 시간 스팬 [첫 클립 시작, 마지막 클립 끝]. 컷(내부 간극)은
+ * 포함하지만 스팬 밖(앞뒤 트림된 원본)은 제외한다. source-시간 core(모션 블러·루프 복귀)가
+ * 유효 콘텐츠 경계로 쓴다 — trim 창을 대체한다.
+ */
+function sourceSpan(recipe: RenderRecipe): { startMs: number; endMs: number } {
+  const clips = recipe.clips
+  return { startMs: clips[0].sourceStartMs, endMs: clips[clips.length - 1].sourceEndMs }
+}
 
 /** 출력 총길이(ms) = Σ (클립 source 길이 / speed). 스크러버·익스포트 길이의 기준. */
 export function outputDurationMs(recipe: RenderRecipe): number {
@@ -817,14 +819,14 @@ export function nextClipId(clips: Clip[]): string {
 }
 
 /**
- * 시각 t에 표시할 키 오버레이를 고른다. 표시 off·트림 밖·활성 키 없음이면 null.
+ * 시각 t에 표시할 키 오버레이를 고른다. 표시 off·활성 키 없음이면 null.
  * holdMs 창 안에 든 가장 최근 키를 표시하므로(최근 우선), 연속 키는 겹치지 않고
- * 순서대로 나타난다. 페이드는 창 안 진행도(0→1)로 낸다.
+ * 순서대로 나타난다. 페이드는 창 안 진행도(0→1)로 낸다. (컷된 source 구간의 키는
+ * output↔source 매핑이 그 source 시간을 방문하지 않으므로 자연히 표시되지 않는다.)
  */
 function sampleKeyOverlay(recipe: RenderRecipe, t: number): KeyOverlayState | null {
   const ks = recipe.keystrokes
   if (!ks.overlayVisible) return null
-  if (t < recipe.trim.startMs || t > recipe.trim.endMs) return null
 
   const hold = KEYSTROKE_DEFAULTS.holdMs
   for (let i = ks.keys.length - 1; i >= 0; i--) {
@@ -841,7 +843,11 @@ function sampleKeyOverlay(recipe: RenderRecipe, t: number): KeyOverlayState | nu
  * 완전 숨김(hidden→null), 유휴 자동 숨김(hideWhenIdle→opacity 페이드), 루프 초기위치
  * 복귀(loopReturn→마지막 loopReturnMs 동안 시작 좌표로 spring 보간). 크기(size)는 그대로 옮긴다.
  */
-function sampleCursor(track: CursorTrack, t: number, trim: Trim): CursorSample | null {
+function sampleCursor(
+  track: CursorTrack,
+  t: number,
+  span: { startMs: number; endMs: number }
+): CursorSample | null {
   // 완전 숨김: 커서를 아예 그리지 않는다.
   if (track.hidden) return null
   const kf = track.keyframes
@@ -850,15 +856,15 @@ function sampleCursor(track: CursorTrack, t: number, trim: Trim): CursorSample |
   let pos = smoothedCursorPos(kf, track.smoothingMs, t)
   let opacity = track.hideWhenIdle ? idleCursorOpacity(kf, t) : 1
 
-  // 루프 초기위치 복귀 — 출력 마지막 loopReturnMs 동안 시작(출력 t=0) 좌표로 spring 보간한다.
-  // 출력 길이가 창보다 짧으면(복귀 시작이 트림 시작 이전) 복귀 이동이 무의미하므로 건너뛴다.
+  // 루프 초기위치 복귀 — 클립 시퀀스 source 스팬의 마지막 loopReturnMs 동안 시작 좌표로 spring
+  // 보간한다. 스팬이 창보다 짧으면(복귀 시작이 스팬 시작 이전) 복귀 이동이 무의미하므로 건너뛴다.
   if (track.loopReturn) {
-    const returnStart = trim.endMs - CURSOR_DEFAULTS.loopReturnMs
-    if (returnStart > trim.startMs && t >= returnStart && t <= trim.endMs) {
+    const returnStart = span.endMs - CURSOR_DEFAULTS.loopReturnMs
+    if (returnStart > span.startMs && t >= returnStart && t <= span.endMs) {
       const p = clamp((t - returnStart) / CURSOR_DEFAULTS.loopReturnMs, 0, 1)
       const e = springEase(p)
       const anchor = smoothedCursorPos(kf, track.smoothingMs, returnStart)
-      const start = smoothedCursorPos(kf, track.smoothingMs, trim.startMs)
+      const start = smoothedCursorPos(kf, track.smoothingMs, span.startMs)
       pos = { x: anchor.x + (start.x - anchor.x) * e, y: anchor.y + (start.y - anchor.y) * e }
       // 유휴 숨김으로 끝에서 숨은 상태면 복귀 시작과 함께 페이드인한다.
       if (track.hideWhenIdle) {

@@ -3,11 +3,13 @@ import type { EditorContext } from '../../../shared/ipc'
 import {
   deriveRecipe,
   MOTION_BLUR_DEFAULTS,
-  sampleComposition,
+  outputDurationMs,
+  sampleCompositionAtOutput,
+  sourceAtOutput,
   type FrameSize,
   type RenderRecipe
 } from '../../../shared/recipe'
-import { deleteZoomSegment, trimmedDurationMs } from '../../../shared/recipe.edit'
+import { deleteZoomSegment } from '../../../shared/recipe.edit'
 import { applyStylePreset, type StylePreset } from '../../../shared/style-preset'
 import { drawComposition } from '../compose'
 import {
@@ -81,6 +83,9 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
   // 진행 중 익스포트의 취소 토큰 — 전체화면 진행 화면의 Stop export가 aborted를 세운다.
   const exportSignalRef = useRef<ExportSignal | null>(null)
   const [playing, setPlaying] = useState(true)
+  // 재생 헤드는 출력 시간(ms)이다 — 클립 시퀀스를 이어 붙인 타임라인 기준. RAF·스텝이 ref로
+  // 즉시 읽고, 표시용 상태(currentMs)는 스로틀해 갱신한다.
+  const currentOutputRef = useRef(0)
   const [currentMs, setCurrentMs] = useState(0)
   // 상단 바 익스포트 버튼 아래 팝오버 열림 상태(D3: 익스포트 동선을 상단 바 primary로).
   const [exportOpen, setExportOpen] = useState(false)
@@ -117,18 +122,20 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // 프레임 스텝(1/60s) — 재생 컨트롤의 ◀|/|▶ 버튼과 ←/→ 단축키가 공유한다.
+  // 프레임 스텝(1/60s) — 재생 컨트롤의 ◀|/|▶ 버튼과 ←/→ 단축키가 공유한다. 출력 시간을
+  // 한 프레임 옮기고, 그 출력 시각의 원본 시각으로 시크한다(컷·속도는 매핑이 흡수).
   const stepFrame = (dir: -1 | 1): void => {
     const video = videoRef.current
     const recipe = recipeRef.current
     if (!video || !recipe) return
     const frameMs = 1000 / 60
     const nextMs = Math.min(
-      recipe.trim.endMs,
-      Math.max(recipe.trim.startMs, video.currentTime * 1000 + dir * frameMs)
+      outputDurationMs(recipe),
+      Math.max(0, currentOutputRef.current + dir * frameMs)
     )
     video.pause()
-    video.currentTime = nextMs / 1000
+    video.currentTime = sourceAtOutput(recipe, nextMs) / 1000
+    currentOutputRef.current = nextMs
     setCurrentMs(nextMs)
   }
 
@@ -191,7 +198,9 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     setSelection((s) => ({ ...s, height: defaultHeightForSource(format, next.source.height) }))
   }
 
-  // 재생 루프: 트림 창 안에서만 반복 재생하고, 매 프레임 합성 파라미터를 샘플링해 그대로 그린다.
+  // 재생 루프: 출력 타임라인(클립 시퀀스)을 반복 재생한다. 네이티브 재생을 유지하되 클립 속도는
+  // playbackRate로 반영하고, 컷 간극·마지막 클립 끝에서만 시크로 점프한다. 원본 시각을 출력 시각으로
+  // 환산해 sampleCompositionAtOutput으로 합성한다 — export와 완전히 같은 출력 시간 경로다.
   const lastTickRef = useRef(0)
   // 썸네일은 미리보기 진입 후 첫 유효 프레임에서 한 번만 캡처한다.
   const thumbSavedRef = useRef(false)
@@ -203,16 +212,40 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
       const canvas = canvasRef.current
       const recipe = recipeRef.current
       if (!video || !canvas || !recipe) return
-      const tMs = video.currentTime * 1000
-      // 트림 앞뒤 밖으로 나가면 트림 시작으로 되감아 창 안만 재생한다.
-      if (tMs < recipe.trim.startMs || tMs >= recipe.trim.endMs) {
-        video.currentTime = recipe.trim.startMs / 1000
-      }
       const ctx = canvas.getContext('2d')
       if (!ctx) return
+
+      const clips = recipe.clips
+      let s = video.currentTime * 1000
+      // 현재 원본 시각이 속한(또는 그 다음) 클립. 마지막 클립 끝을 지났으면 루프: 첫 클립으로 되감는다.
+      let idx = clips.findIndex((c) => s < c.sourceEndMs)
+      if (idx === -1) {
+        video.currentTime = clips[0].sourceStartMs / 1000
+        s = clips[0].sourceStartMs
+        idx = 0
+        // 원본 끝에 닿아 멈춘 상태였다면 다시 재생한다(사용자 일시정지는 ended가 아니라 건드리지 않음).
+        if (video.ended) void video.play()
+      }
+      const clip = clips[idx]
+      // 컷 간극(이전 클립 끝과 이 클립 시작 사이)에 들어와 있으면 이 클립 시작으로 점프한다.
+      if (s < clip.sourceStartMs) {
+        video.currentTime = clip.sourceStartMs / 1000
+        s = clip.sourceStartMs
+      }
+      // 클립 속도를 네이티브 재생 속도로 반영한다(시크 없이 빨리/느리게 재생).
+      if (video.playbackRate !== clip.speed) video.playbackRate = clip.speed
+
+      // 원본 시각 → 출력 시각: 이전 클립들의 출력 길이 합 + 이 클립 안 진행분/speed.
+      let outputMs = 0
+      for (let i = 0; i < idx; i++) {
+        outputMs += (clips[i].sourceEndMs - clips[i].sourceStartMs) / clips[i].speed
+      }
+      outputMs += (s - clip.sourceStartMs) / clip.speed
+      currentOutputRef.current = outputMs
+
       // 카메라·커서·클릭·배경/패딩·배지를 한 번에 샘플링해 공용 그리기 함수로 그린다.
       // 명목 fps로 전환 구간 모션 블러를 함께 그려 export와 같은 인상을 미리 보여 준다.
-      const comp = sampleComposition(recipe, video.currentTime * 1000, MOTION_BLUR_DEFAULTS.previewFps)
+      const comp = sampleCompositionAtOutput(recipe, outputMs, MOTION_BLUR_DEFAULTS.previewFps)
       drawComposition(ctx, video, comp, recipe.source)
       // 첫 유효 프레임이 그려지면 썸네일을 한 번 캡처해 폴더에 캐시한다(최근 목록용).
       if (!thumbSavedRef.current && video.readyState >= 2 && video.videoWidth > 0) {
@@ -223,7 +256,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
       const now = performance.now()
       if (now - lastTickRef.current > 80) {
         lastTickRef.current = now
-        setCurrentMs(video.currentTime * 1000)
+        setCurrentMs(outputMs)
       }
     }
     raf = requestAnimationFrame(tick)
@@ -318,10 +351,10 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     setPresets((prev) => prev.filter((p) => p.id !== id))
   }
 
-  // 트림 반영 길이 (메타 바·재생 컨트롤에서 공유).
-  const lengthMs = recipe ? trimmedDurationMs(recipe) : state.durationMs
+  // 출력 타임라인 길이 (메타 바·재생 컨트롤에서 공유).
+  const lengthMs = recipe ? outputDurationMs(recipe) : state.durationMs
 
-  // 사전 추정치(예상 시간·최대 용량) — 선택·포맷·트림 길이로 매번 다시 계산한다(순수, #159 AC7).
+  // 사전 추정치(예상 시간·최대 용량) — 선택·포맷·출력 길이로 매번 다시 계산한다(순수, #159 AC7).
   const estimate = ((): { sizeBytes: number; seconds: number; exceedsLimit: boolean } => {
     if (!recipe) return { sizeBytes: 0, seconds: 0, exceedsLimit: false }
     const config =
@@ -460,7 +493,7 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
                 |▶
               </button>
               <span className="playback-time">
-                {formatElapsed(Math.max(0, currentMs - recipe.trim.startMs))} / {formatElapsed(lengthMs)}
+                {formatElapsed(Math.max(0, currentMs))} / {formatElapsed(lengthMs)}
               </span>
             </div>
             <Timeline

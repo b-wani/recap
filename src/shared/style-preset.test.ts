@@ -25,7 +25,6 @@ const recipe: RenderRecipe = {
     hideWhenIdle: false,
     loopReturn: true
   },
-  trim: { startMs: 250, endMs: 4750 },
   clips: [{ id: 'c1', sourceStartMs: 250, sourceEndMs: 4750, speed: 1 }],
   background: {
     type: 'gradient',
@@ -50,10 +49,10 @@ describe('extractStylePreset: 레시피 → 스타일 번들', () => {
     })
   })
 
-  it('줌 구간·트림·배지·키 오버레이·커서 키프레임은 담지 않는다', () => {
+  it('줌 구간·클립·배지·키 오버레이·커서 키프레임은 담지 않는다', () => {
     const preset = extractStylePreset(recipe, '내 스타일', 'preset-1')
     expect(preset).not.toHaveProperty('zoomSegments')
-    expect(preset).not.toHaveProperty('trim')
+    expect(preset).not.toHaveProperty('clips')
     expect(preset).not.toHaveProperty('badge')
     expect(preset).not.toHaveProperty('keystrokes')
     expect(preset.cursor).not.toHaveProperty('keyframes')
@@ -86,10 +85,10 @@ describe('applyStylePreset: 프리셋 → 레시피 (스타일 필드만 덮어�
     expect(next.cursor.smoothingMs).toBe(0)
   })
 
-  it('줌 구간·트림·배지·키 오버레이·커서 키프레임/클릭은 그대로 둔다(불변)', () => {
+  it('줌 구간·클립·배지·키 오버레이·커서 키프레임/클릭은 그대로 둔다(불변)', () => {
     const next = applyStylePreset(recipe, preset)
     expect(next.zoomSegments).toBe(recipe.zoomSegments)
-    expect(next.trim).toBe(recipe.trim)
+    expect(next.clips).toBe(recipe.clips)
     expect(next.badge).toBe(recipe.badge)
     expect(next.keystrokes).toBe(recipe.keystrokes)
     expect(next.cursor.keyframes).toBe(recipe.cursor.keyframes)
