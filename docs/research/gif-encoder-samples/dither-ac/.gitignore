@@ -1,0 +1,4 @@
+# 로컬 산출물(재생성 가능) — 트래킹은 harness 스크립트(.mjs/.py)만.
+# 유일한 git 트래킹 이미지 산출물은 상위 dither-ac-montage.png.
+*.gif
+*.png
