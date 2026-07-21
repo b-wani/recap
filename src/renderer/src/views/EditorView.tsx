@@ -14,9 +14,10 @@ import {
   DEFAULT_SELECTION,
   defaultHeightForSource,
   exceedsSizeLimit,
+  type ExportFormat,
   type GifSelection
 } from '../../../shared/export-preset'
-import { renderRecipeToGif } from '../export'
+import { renderRecipeToGif, renderRecipeToMp4 } from '../export'
 import { formatElapsed } from '../format'
 import { Timeline } from '../components/Timeline'
 import { Sidebar } from '../components/Sidebar'
@@ -60,6 +61,8 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
   // GIF 익스포트 선택(해상도·fps). 창 열린 동안 유지되고 새 에디터 창이면 기본값(720p/50)으로 리셋된다
   // (창 하나가 클립 하나 — 컴포넌트 재마운트가 곧 리셋). 원본이 720p 미만이면 메타데이터 로드 시 폴백한다.
   const [selection, setSelection] = useState<GifSelection>(DEFAULT_SELECTION)
+  // 익스포트 출력 포맷(#155). 기본 GIF(recap 차별화 축), MP4는 원화질 출력. 창 재마운트가 곧 리셋.
+  const [format, setFormat] = useState<ExportFormat>('gif')
   const [playing, setPlaying] = useState(true)
   const [currentMs, setCurrentMs] = useState(0)
   // 상단 바 익스포트 버튼 아래 팝오버 열림 상태(D3: 익스포트 동선을 상단 바 primary로).
@@ -206,22 +209,26 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     return () => cancelAnimationFrame(raf)
   }, [state.folder])
 
-  // 익스포트: 미리보기와 동일한 레시피로 원본을 GIF로 인코딩해 폴더에 저장한다.
+  // 익스포트: 미리보기와 동일한 레시피로 원본을 선택 포맷(GIF/MP4)으로 인코딩해 폴더에 저장한다.
+  // 합성은 공유하고 인코더만 분기한다(#155). 용량 경고는 Dooray 인라인 대상인 GIF에만 적용한다.
   const handleExport = async (): Promise<void> => {
     const video = videoRef.current
     const recipe = recipeRef.current
     if (!video || !recipe) return
     setExportStatus({ phase: 'encoding', renderedFrames: 0, totalFrames: 0 })
     try {
-      const bytes = await renderRecipeToGif(video, recipe, DOORAY_GIF_PRESET, selection, (p) =>
+      const onProgress = (p: { renderedFrames: number; totalFrames: number }): void =>
         setExportStatus({ phase: 'encoding', ...p })
-      )
-      const { path, sizeBytes } = await window.recap.saveExport(bytes, state.folder)
+      const bytes =
+        format === 'mp4'
+          ? await renderRecipeToMp4(video, recipe, selection, onProgress)
+          : await renderRecipeToGif(video, recipe, DOORAY_GIF_PRESET, selection, onProgress)
+      const { path, sizeBytes } = await window.recap.saveExport(bytes, state.folder, format)
       setExportStatus({
         phase: 'done',
         path,
         sizeBytes,
-        exceedsLimit: exceedsSizeLimit(DOORAY_GIF_PRESET, sizeBytes)
+        exceedsLimit: format === 'gif' && exceedsSizeLimit(DOORAY_GIF_PRESET, sizeBytes)
       })
     } catch (err) {
       setExportStatus({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
@@ -306,6 +313,8 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
             <div className="export-popover">
               <ExportPanel
                 status={exportStatus}
+                format={format}
+                onFormatChange={setFormat}
                 selection={selection}
                 onSelectionChange={setSelection}
                 sourceHeight={recipe?.source.height ?? 0}
