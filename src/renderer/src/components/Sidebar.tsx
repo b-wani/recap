@@ -8,12 +8,16 @@ import {
 } from '../../../shared/recipe'
 import { setZoomSegmentScale } from '../../../shared/recipe.edit'
 import type { StylePreset } from '../../../shared/style-preset'
+import type { EditorSection } from './editor-rail'
 
 /**
- * 우측 설정 사이드바 — 단일 스크롤 패널. 선택 상태에 따라 두 모드로 그린다:
+ * 우측 설정 사이드바 — 세로 레일(#162)이 고른 섹션 하나만 그린다:
  *
- * - 기본 패널: 배경/패딩 · 커서 · 배지/키 오버레이 섹션 (탭 없이 한 컬럼).
- * - 컨텍스트 패널: 타임라인에서 줌 구간을 선택하면 그 구간의 배율·삭제만 보여준다.
+ * - select: 배경/패딩/라운딩/섀도 + 스타일 프리셋 + 메타
+ * - cursor: 커서 컨트롤
+ * - camera: 줌 구간 편집(타임라인에서 구간 선택 시 배율·삭제, 없으면 안내)
+ * - caption: 뷰포트 배지 · 맥락 라벨
+ * - shortcuts: 키 입력 오버레이
  *
  * 익스포트는 상단 바 primary 버튼(팝오버)로 옮겨졌다(#76, D3) — 여기서는 다루지 않는다.
  *
@@ -23,6 +27,7 @@ import type { StylePreset } from '../../../shared/style-preset'
 export function Sidebar({
   recipe,
   update,
+  section,
   selected,
   onDeleteSegment,
   eventCount,
@@ -34,6 +39,8 @@ export function Sidebar({
 }: {
   recipe: RenderRecipe
   update: (fn: (r: RenderRecipe) => RenderRecipe) => void
+  /** 레일이 고른 활성 섹션(#162). */
+  section: EditorSection
   selected: number | null
   onDeleteSegment: (index: number) => void
   eventCount: number
@@ -47,39 +54,185 @@ export function Sidebar({
   const [presetName, setPresetName] = useState('')
   const segment = selected !== null ? recipe.zoomSegments[selected] : undefined
 
-  // 컨텍스트 패널 — 줌 구간 편집 (배율 · 삭제).
-  if (selected !== null && segment) {
+  // 카메라(줌) — 타임라인에서 고른 줌 구간의 배율·삭제. 선택 전이면 안내만 보여준다.
+  if (section === 'camera') {
+    return (
+      <aside className="editor-sidebar">
+        {selected !== null && segment ? (
+          <fieldset className="side-section">
+            <legend className="side-section-title">줌 구간 #{selected + 1}</legend>
+            <p className="side-hint">배율</p>
+            <div className="scale-buttons">
+              {ZOOM_DEFAULTS.scales.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`btn btn-scale${segment.scale === s ? ' is-active' : ''}`}
+                  onClick={() => update((r) => setZoomSegmentScale(r, selected, s))}
+                >
+                  {s.toFixed(1)}x
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={() => onDeleteSegment(selected)}
+            >
+              줌 구간 삭제
+            </button>
+            <p className="side-hint">빈 곳을 클릭하거나 Esc를 누르면 선택이 해제됩니다.</p>
+          </fieldset>
+        ) : (
+          <fieldset className="side-section">
+            <legend className="side-section-title">카메라 · 줌</legend>
+            <p className="side-hint">타임라인에서 줌 구간을 선택하면 배율·삭제를 편집할 수 있습니다.</p>
+          </fieldset>
+        )}
+      </aside>
+    )
+  }
+
+  // 커서.
+  if (section === 'cursor') {
     return (
       <aside className="editor-sidebar">
         <fieldset className="side-section">
-          <legend className="side-section-title">줌 구간 #{selected + 1}</legend>
-          <p className="side-hint">배율</p>
-          <div className="scale-buttons">
-            {ZOOM_DEFAULTS.scales.map((s) => (
+          <legend className="side-section-title">커서</legend>
+          <label className="control control-check">
+            <input
+              type="checkbox"
+              checked={recipe.cursor.hidden}
+              onChange={(e) => update((r) => ({ ...r, cursor: { ...r.cursor, hidden: e.target.checked } }))}
+            />
+            <span>커서 숨김</span>
+          </label>
+          <label className="control">
+            <span className="control-row">
+              <span>크기</span>
+              <span className="control-value">{recipe.cursor.size.toFixed(1)}x</span>
+            </span>
+            <div className="control-row">
+              <input
+                type="range"
+                min={CURSOR_DEFAULTS.sizeMin}
+                max={CURSOR_DEFAULTS.sizeMax}
+                step={CURSOR_DEFAULTS.sizeStep}
+                value={recipe.cursor.size}
+                disabled={recipe.cursor.hidden}
+                onChange={(e) =>
+                  update((r) => ({ ...r, cursor: { ...r.cursor, size: Number(e.target.value) } }))
+                }
+              />
               <button
-                key={s}
                 type="button"
-                className={`btn btn-scale${segment.scale === s ? ' is-active' : ''}`}
-                onClick={() => update((r) => setZoomSegmentScale(r, selected, s))}
+                className="btn btn-sm"
+                onClick={() =>
+                  update((r) => ({ ...r, cursor: { ...r.cursor, size: CURSOR_DEFAULTS.size } }))
+                }
               >
-                {s.toFixed(1)}x
+                Reset
               </button>
-            ))}
+            </div>
+          </label>
+          <div className="control">
+            <span>스무딩</span>
+            <div className="scale-buttons">
+              {CURSOR_DEFAULTS.smoothingLevels.map((lv) => (
+                <button
+                  key={lv.label}
+                  type="button"
+                  className={`btn btn-scale is-text${recipe.cursor.smoothingMs === lv.value ? ' is-active' : ''}`}
+                  onClick={() =>
+                    update((r) => ({ ...r, cursor: { ...r.cursor, smoothingMs: lv.value } }))
+                  }
+                >
+                  {lv.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <button
-            type="button"
-            className="btn btn-danger"
-            onClick={() => onDeleteSegment(selected)}
-          >
-            줌 구간 삭제
-          </button>
-          <p className="side-hint">빈 곳을 클릭하거나 Esc를 누르면 기본 설정으로 돌아갑니다.</p>
+          <label className="control control-check">
+            <input
+              type="checkbox"
+              checked={recipe.cursor.hideWhenIdle}
+              onChange={(e) =>
+                update((r) => ({ ...r, cursor: { ...r.cursor, hideWhenIdle: e.target.checked } }))
+              }
+            />
+            <span>유휴 시 자동 숨김</span>
+          </label>
+          <label className="control control-check">
+            <input
+              type="checkbox"
+              checked={recipe.cursor.loopReturn}
+              onChange={(e) =>
+                update((r) => ({ ...r, cursor: { ...r.cursor, loopReturn: e.target.checked } }))
+              }
+            />
+            <span>루프 초기위치 복귀</span>
+          </label>
         </fieldset>
       </aside>
     )
   }
 
-  // 기본 패널.
+  // 캡션 · 배지 — 뷰포트 크기 배지 + 맥락 라벨.
+  if (section === 'caption') {
+    return (
+      <aside className="editor-sidebar">
+        <fieldset className="side-section">
+          <legend className="side-section-title">캡션 · 배지</legend>
+          <label className="control control-check">
+            <input
+              type="checkbox"
+              checked={recipe.badge.visible}
+              onChange={(e) => update((r) => ({ ...r, badge: { ...r.badge, visible: e.target.checked } }))}
+            />
+            <span>뷰포트 크기 배지</span>
+          </label>
+          <label className="control">
+            <span>맥락 (브랜치/커밋)</span>
+            <input
+              type="text"
+              className="control-text"
+              placeholder="예: feat/v2-overlay @ 61e6fd6"
+              value={recipe.badge.contextLabel}
+              onChange={(e) =>
+                update((r) => ({ ...r, badge: { ...r.badge, contextLabel: e.target.value } }))
+              }
+            />
+          </label>
+        </fieldset>
+      </aside>
+    )
+  }
+
+  // 단축키 오버레이 — 키 입력 오버레이.
+  if (section === 'shortcuts') {
+    return (
+      <aside className="editor-sidebar">
+        <fieldset className="side-section">
+          <legend className="side-section-title">단축키 오버레이</legend>
+          <label className="control control-check">
+            <input
+              type="checkbox"
+              checked={recipe.keystrokes.overlayVisible}
+              onChange={(e) =>
+                update((r) => ({
+                  ...r,
+                  keystrokes: { ...r.keystrokes, overlayVisible: e.target.checked }
+                }))
+              }
+            />
+            <span>키 입력 오버레이</span>
+          </label>
+        </fieldset>
+      </aside>
+    )
+  }
+
+  // select — 배경/패딩/스타일 프리셋 + 메타.
   return (
     <aside className="editor-sidebar">
       {/* ① 배경 / 패딩 / 라운딩 / 섀도 */}
@@ -183,123 +336,7 @@ export function Sidebar({
         </label>
       </fieldset>
 
-      {/* ② 커서 */}
-      <fieldset className="side-section">
-        <legend className="side-section-title">커서</legend>
-        <label className="control control-check">
-          <input
-            type="checkbox"
-            checked={recipe.cursor.hidden}
-            onChange={(e) => update((r) => ({ ...r, cursor: { ...r.cursor, hidden: e.target.checked } }))}
-          />
-          <span>커서 숨김</span>
-        </label>
-        <label className="control">
-          <span className="control-row">
-            <span>크기</span>
-            <span className="control-value">{recipe.cursor.size.toFixed(1)}x</span>
-          </span>
-          <div className="control-row">
-            <input
-              type="range"
-              min={CURSOR_DEFAULTS.sizeMin}
-              max={CURSOR_DEFAULTS.sizeMax}
-              step={CURSOR_DEFAULTS.sizeStep}
-              value={recipe.cursor.size}
-              disabled={recipe.cursor.hidden}
-              onChange={(e) =>
-                update((r) => ({ ...r, cursor: { ...r.cursor, size: Number(e.target.value) } }))
-              }
-            />
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() =>
-                update((r) => ({ ...r, cursor: { ...r.cursor, size: CURSOR_DEFAULTS.size } }))
-              }
-            >
-              Reset
-            </button>
-          </div>
-        </label>
-        <div className="control">
-          <span>스무딩</span>
-          <div className="scale-buttons">
-            {CURSOR_DEFAULTS.smoothingLevels.map((lv) => (
-              <button
-                key={lv.label}
-                type="button"
-                className={`btn btn-scale is-text${recipe.cursor.smoothingMs === lv.value ? ' is-active' : ''}`}
-                onClick={() =>
-                  update((r) => ({ ...r, cursor: { ...r.cursor, smoothingMs: lv.value } }))
-                }
-              >
-                {lv.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <label className="control control-check">
-          <input
-            type="checkbox"
-            checked={recipe.cursor.hideWhenIdle}
-            onChange={(e) =>
-              update((r) => ({ ...r, cursor: { ...r.cursor, hideWhenIdle: e.target.checked } }))
-            }
-          />
-          <span>유휴 시 자동 숨김</span>
-        </label>
-        <label className="control control-check">
-          <input
-            type="checkbox"
-            checked={recipe.cursor.loopReturn}
-            onChange={(e) =>
-              update((r) => ({ ...r, cursor: { ...r.cursor, loopReturn: e.target.checked } }))
-            }
-          />
-          <span>루프 초기위치 복귀</span>
-        </label>
-      </fieldset>
-
-      {/* ③ 배지 · 키 입력 오버레이 */}
-      <fieldset className="side-section">
-        <legend className="side-section-title">배지 · 키 입력</legend>
-        <label className="control control-check">
-          <input
-            type="checkbox"
-            checked={recipe.badge.visible}
-            onChange={(e) => update((r) => ({ ...r, badge: { ...r.badge, visible: e.target.checked } }))}
-          />
-          <span>뷰포트 크기 배지</span>
-        </label>
-        <label className="control">
-          <span>맥락 (브랜치/커밋)</span>
-          <input
-            type="text"
-            className="control-text"
-            placeholder="예: feat/v2-overlay @ 61e6fd6"
-            value={recipe.badge.contextLabel}
-            onChange={(e) =>
-              update((r) => ({ ...r, badge: { ...r.badge, contextLabel: e.target.value } }))
-            }
-          />
-        </label>
-        <label className="control control-check">
-          <input
-            type="checkbox"
-            checked={recipe.keystrokes.overlayVisible}
-            onChange={(e) =>
-              update((r) => ({
-                ...r,
-                keystrokes: { ...r.keystrokes, overlayVisible: e.target.checked }
-              }))
-            }
-          />
-          <span>키 입력 오버레이</span>
-        </label>
-      </fieldset>
-
-      {/* ④ 스타일 프리셋 — 배경/커서 스타일 번들만(줌·트림 등 녹화별 편집은 담지 않는다, #77) */}
+      {/* ② 스타일 프리셋 — 배경/커서 스타일 번들만(줌·트림 등 녹화별 편집은 담지 않는다, #77) */}
       <fieldset className="side-section">
         <legend className="side-section-title">스타일 프리셋</legend>
         <div className="control control-row preset-save">

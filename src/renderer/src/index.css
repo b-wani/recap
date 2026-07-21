@@ -499,17 +499,66 @@ body {
   font-weight: 600;
 }
 
-/* 3영역 그리드: 좌상단 캔버스 · 우측 사이드바 · 하단 전폭 타임라인 */
+/* 4영역 그리드: 캔버스 · 세로 레일 · 우측 사이드바 · 하단 전폭 타임라인 (#162) */
 .editor-body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) auto 320px;
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
-    'canvas sidebar'
-    'timeline timeline';
+    'canvas rail sidebar'
+    'timeline timeline timeline';
   gap: var(--space-3);
+}
+
+/* ── 세로 아이콘 툴 레일 (#162) — 캔버스↔사이드바 사이 섹션 전환 ─── */
+.editor-rail {
+  grid-area: rail;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+}
+
+.rail-btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) var(--motion-easing),
+    color var(--motion-fast) var(--motion-easing);
+}
+
+.rail-btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.rail-btn.is-active {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent-bright);
+}
+
+.rail-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.rail-icon {
+  display: block;
 }
 
 /* 프리뷰 캔버스가 남는 공간을 차지 (주인공) */
@@ -1379,14 +1428,21 @@ body {
 
 /* ── 좁은 창 대응 ─────────────────────────────────── */
 @media (max-width: 820px) {
-  /* 캔버스 위, 사이드바 아래, 타임라인 맨 아래로 한 컬럼에 쌓는다. */
+  /* 캔버스 위, 레일·사이드바 아래, 타임라인 맨 아래로 한 컬럼에 쌓는다. */
   .editor-body {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-rows: minmax(0, 1fr) auto auto auto;
     grid-template-areas:
       'canvas'
+      'rail'
       'sidebar'
       'timeline';
+  }
+
+  /* 좁은 창에서 레일은 가로 아이콘 줄로 눕힌다. */
+  .editor-rail {
+    flex-direction: row;
+    justify-content: flex-start;
   }
 
   .editor-sidebar {

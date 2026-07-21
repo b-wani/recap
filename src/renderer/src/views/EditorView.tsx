@@ -27,6 +27,8 @@ import { renderRecipeToGif, renderRecipeToMp4, type ExportSignal } from '../expo
 import { formatElapsed } from '../format'
 import { Timeline } from '../components/Timeline'
 import { Sidebar } from '../components/Sidebar'
+import { EditorRail } from '../components/EditorRail'
+import type { EditorSection } from '../components/editor-rail'
 import {
   ExportPanel,
   ExportProgressOverlay,
@@ -68,6 +70,8 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
   const [recipe, setRecipe] = useState<RenderRecipe | null>(null)
   // 선택 상태는 이 하나로 소유한다(줌 구간 인덱스 문자열, 없으면 null). 빈 곳 클릭·Esc로 해제.
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // 세로 레일이 고른 우측 사이드바 섹션(#162). 줌 구간을 선택하면 카메라 섹션으로 전환된다.
+  const [activeSection, setActiveSection] = useState<EditorSection>('select')
   const [exportStatus, setExportStatus] = useState<ExportStatus>({ phase: 'idle' })
   // 익스포트 선택(해상도·fps·품질 티어, #159). 창 열린 동안 유지되고 새 에디터 창이면 기본값으로
   // 리셋된다(창 하나가 클립 하나 — 컴포넌트 재마운트가 곧 리셋). 원본이 작으면 메타데이터 로드 시 폴백.
@@ -101,10 +105,13 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     return () => window.removeEventListener('pointerdown', onDown)
   }, [exportOpen])
 
-  // Esc로 선택을 해제해 사이드바를 기본 패널로 되돌린다.
+  // Esc로 선택을 해제해 사이드바를 기본(선택 도구) 섹션으로 되돌린다.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setSelectedId(null)
+      if (e.key === 'Escape') {
+        setSelectedId(null)
+        setActiveSection('select')
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -404,16 +411,19 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
         />
       )}
 
-      {/* 3영역: 좌상단 캔버스 · 우측 사이드바 · 하단 전폭 타임라인 */}
+      {/* 4영역: 캔버스 · 세로 레일 · 우측 사이드바 · 하단 전폭 타임라인 */}
       <div className="editor-body">
         <div className="canvas-wrap">
           <canvas ref={canvasRef} className="preview-canvas" />
         </div>
 
+        {recipe && <EditorRail active={activeSection} onSelect={setActiveSection} />}
+
         {recipe && (
           <Sidebar
             recipe={recipe}
             update={update}
+            section={activeSection}
             selected={selected}
             onDeleteSegment={onDeleteSegment}
             eventCount={state.eventCount}
@@ -457,7 +467,11 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
               recipe={recipe}
               selected={selected}
               currentMs={currentMs}
-              onSelect={(i) => setSelectedId(i === null ? null : String(i))}
+              onSelect={(i) => {
+                setSelectedId(i === null ? null : String(i))
+                // 줌 구간을 고르면 카메라 섹션으로 전환해 배율·삭제를 바로 보여준다.
+                if (i !== null) setActiveSection('camera')
+              }}
               onChange={setRecipe}
             />
           </div>
