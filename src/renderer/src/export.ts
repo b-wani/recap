@@ -7,8 +7,9 @@
  * GIF는 gifenc(팔레트 양자화 + LZW), MP4는 WebCodecs `VideoEncoder`+mediabunny로 인코딩한다.
  * 두 경로는 합성을 완전히 재사용하고 인코더만 분기한다(GIF 경로와 대칭, #155·결정 #141).
  *
- * 트림 창 밖 프레임은 익스포트하지 않는다 — 최종 영상 길이는 트림된 길이(trim)를 따른다.
- * 이 층은 효과를 계산하지 않는다(recipe.ts가 굽는다) — 프레임을 뽑아 인코더에 밀 뿐이다.
+ * 출력 타임라인(클립 시퀀스를 이어 붙인 것)을 프레임 간격으로 순회한다 — 최종 영상 길이는
+ * outputDurationMs, 각 출력 시각은 sourceAtOutput으로 원본 시각을 되돌려 시크·합성한다. 컷은
+ * 자연히 건너뛰고 속도는 자연히 압축된다. 이 층은 효과를 계산하지 않는다(recipe.ts가 굽는다).
  */
 
 import { GIFEncoder, quantize, applyPalette } from 'gifenc'
@@ -24,8 +25,12 @@ import {
   QUALITY_MEDIUM,
   QUALITY_LOW
 } from 'mediabunny'
-import { sampleComposition, type RenderRecipe } from '../../shared/recipe'
-import { trimmedDurationMs } from '../../shared/recipe.edit'
+import {
+  outputDurationMs,
+  sampleCompositionAtOutput,
+  sourceAtOutput,
+  type RenderRecipe
+} from '../../shared/recipe'
 import {
   resolveGifConfig,
   resolveMp4Config,
@@ -119,8 +124,8 @@ export async function renderRecipeToGif(
   signal?: ExportSignal
 ): Promise<ArrayBuffer> {
   const config: GifConfig = resolveGifConfig(recipe.source, selection)
-  // 최종 GIF 길이도 트림된 길이를 따른다.
-  const outputDurationMs = trimmedDurationMs(recipe)
+  // 최종 GIF 길이는 출력 타임라인 길이(클립 시퀀스)를 따른다.
+  const totalMs = outputDurationMs(recipe)
 
   const canvas = document.createElement('canvas')
   canvas.width = config.width
@@ -135,7 +140,7 @@ export async function renderRecipeToGif(
   const frameDelayMs = config.delayCs * 10
   const effectiveFps = 100 / config.delayCs
   const frameDurationSec = 1 / effectiveFps
-  const totalFrames = Math.max(1, Math.round((outputDurationMs / 1000) * effectiveFps))
+  const totalFrames = Math.max(1, Math.round((totalMs / 1000) * effectiveFps))
 
   const wasPaused = video.paused
   video.pause()
@@ -143,12 +148,11 @@ export async function renderRecipeToGif(
   try {
     for (let i = 0; i < totalFrames; i++) {
       throwIfAborted(signal)
-      const tSec = i * frameDurationSec
-      // 출력 타임라인은 0부터지만, 원본에서는 트림 시작 지점부터 샘플링·시크한다.
-      const sourceMs = recipe.trim.startMs + tSec * 1000
-      await seekVideo(video, sourceMs / 1000)
+      // 출력 타임라인을 프레임 간격으로 순회하고, 매 시각을 원본 시각으로 되돌려 시크한다.
+      const outputMs = i * frameDurationSec * 1000
+      await seekVideo(video, sourceAtOutput(recipe, outputMs) / 1000)
       // 전환 구간 모션 블러는 출력 fps로 노출 창을 잡는다(미리보기와 같은 그리기 경로).
-      const comp = sampleComposition(recipe, sourceMs, effectiveFps)
+      const comp = sampleCompositionAtOutput(recipe, outputMs, effectiveFps)
       drawComposition(ctx, video, comp, recipe.source)
 
       const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -202,8 +206,8 @@ export async function renderRecipeToMp4(
     throw new Error(`이 기기에서 지원하지 않는 MP4 인코더 설정입니다 (H.264 ${config.codec})`)
   }
 
-  // 최종 MP4 길이도 트림된 길이를 따른다.
-  const outputDurationMs = trimmedDurationMs(recipe)
+  // 최종 MP4 길이는 출력 타임라인 길이(클립 시퀀스)를 따른다.
+  const totalMs = outputDurationMs(recipe)
 
   const canvas = document.createElement('canvas')
   canvas.width = config.width
@@ -225,7 +229,7 @@ export async function renderRecipeToMp4(
   await output.start()
 
   const frameDurationSec = 1 / config.fps
-  const totalFrames = Math.max(1, Math.round((outputDurationMs / 1000) * config.fps))
+  const totalFrames = Math.max(1, Math.round((totalMs / 1000) * config.fps))
 
   const wasPaused = video.paused
   video.pause()
@@ -234,11 +238,11 @@ export async function renderRecipeToMp4(
     for (let i = 0; i < totalFrames; i++) {
       throwIfAborted(signal)
       const tSec = i * frameDurationSec
-      // 출력 타임라인은 0부터지만, 원본에서는 트림 시작 지점부터 샘플링·시크한다.
-      const sourceMs = recipe.trim.startMs + tSec * 1000
-      await seekVideo(video, sourceMs / 1000)
+      // 출력 타임라인을 프레임 간격으로 순회하고, 매 시각을 원본 시각으로 되돌려 시크한다.
+      const outputMs = tSec * 1000
+      await seekVideo(video, sourceAtOutput(recipe, outputMs) / 1000)
       // 전환 구간 모션 블러는 출력 fps로 노출 창을 잡는다(미리보기와 같은 그리기 경로).
-      const comp = sampleComposition(recipe, sourceMs, config.fps)
+      const comp = sampleCompositionAtOutput(recipe, outputMs, config.fps)
       drawComposition(ctx, video, comp, recipe.source)
 
       // 캔버스 현재 상태를 프레임으로 캡처·인코딩한다. add의 Promise를 await해 백프레셔를 지킨다.

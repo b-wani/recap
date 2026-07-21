@@ -45,7 +45,6 @@ const recipe: RenderRecipe = {
     hideWhenIdle: false,
     loopReturn: true
   },
-  trim: { startMs: 250, endMs: 4750 },
   clips: [{ id: 'c1', sourceStartMs: 250, sourceEndMs: 4750, speed: 1 }],
   background: {
     type: 'color',

@@ -1095,6 +1095,52 @@ body {
   z-index: 1;
 }
 
+/* 클립 블록 — 골드 클립 트랙 위 선택 가능한 조각. 필름 텍스처가 비치도록 옅은 오버레이만. */
+.tl-clip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.tl-clip.is-selected {
+  outline: 2px solid var(--selection);
+  outline-offset: -2px;
+  box-shadow: var(--shadow-selection-glow);
+  z-index: 3;
+}
+
+/* 속도 배지 — 배속(≠1)일 때만 클립 우상단에 표시. */
+.tl-clip-speed {
+  margin: 2px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  color: var(--text-1);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 클립 편집 툴바 — 분할·속도·삭제. */
+.tl-clip-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-2);
+}
+
+.tl-clip-tools-sep {
+  color: var(--text-3);
+}
+
 /* 줌 구간 블록 — 바이올렛. */
 .tl-seg {
   position: absolute;

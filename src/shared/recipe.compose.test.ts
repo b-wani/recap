@@ -2,7 +2,13 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { describe, it, expect } from 'vitest'
-import { deriveRecipe, sampleComposition, COMPOSITE_DEFAULTS, KEYSTROKE_DEFAULTS } from './recipe'
+import {
+  deriveRecipe,
+  sampleComposition,
+  sampleCompositionAtOutput,
+  COMPOSITE_DEFAULTS,
+  KEYSTROKE_DEFAULTS
+} from './recipe'
 import type { RenderRecipe } from './recipe'
 import type { EventTrack } from './event-track'
 
@@ -137,13 +143,16 @@ describe('합성 파라미터 샘플링: (렌더 레시피, 시각 t) → 프레
       expect(sampleComposition(r, 1000).keyOverlay).toBeNull()
     })
 
-    it('트림 창 밖이면 키 오버레이도 비운다', () => {
+    it('컷된 source 구간의 키는 출력에 나타나지 않는다 (트림 가드 대체)', () => {
+      // 앞트림: 첫 클립이 source 1500부터 시작 → 그 이전 source는 출력에서 방문되지 않는다.
       const r: RenderRecipe = {
-        ...withKeys([{ t: 1000, combo: '⌘S' }]),
-        trim: { startMs: 1500, endMs: recipe.durationMs }
+        ...withKeys([{ t: 100, combo: '⌘S' }]),
+        clips: [{ id: 'c1', sourceStartMs: 1500, sourceEndMs: recipe.durationMs, speed: 1 }]
       }
-      // t=1000은 트림 시작 이전 → null.
-      expect(sampleComposition(r, 1000).keyOverlay).toBeNull()
+      // 출력 0 = source 1500. 키(t=100, 창 100~1300)는 앞트림에 잘려 방문되지 않는다 → null.
+      expect(sampleCompositionAtOutput(r, 0).keyOverlay).toBeNull()
+      // 트림 가드가 사라져, 원본 시간으로 직접 샘플하면 창 안 키는 그대로 표시된다 — 매핑이 도메인을 정한다.
+      expect(sampleComposition(r, 100).keyOverlay?.combo).toBe('⌘S')
     })
 
     it('키가 없으면 null (기본 유도 레시피)', () => {

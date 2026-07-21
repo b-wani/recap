@@ -2,14 +2,16 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { describe, it, expect } from 'vitest'
-import { deriveRecipe, sampleRecipe, ZOOM_RAMP_MS } from './recipe'
+import { deriveRecipe, outputDurationMs, sampleRecipe, ZOOM_RAMP_MS } from './recipe'
 import {
+  deleteClip,
   deleteZoomSegment,
   moveZoomSegment,
   resizeZoomSegment,
+  setClipBoundary,
+  setClipSpeed,
   setZoomSegmentScale,
-  trimRecipe,
-  trimmedDurationMs
+  splitClip
 } from './recipe.edit'
 import type { EventTrack } from './event-track'
 
@@ -188,39 +190,107 @@ describe('경량 편집: 구간별 줌 배율 (#23)', () => {
   })
 })
 
-describe('경량 편집: 앞뒤 트리밍', () => {
-  it('트림 창을 좁힌다', () => {
-    const edited = trimRecipe(base, { startMs: 2000, endMs: 9000 })
-    expect(edited.trim).toEqual({ startMs: 2000, endMs: 9000 })
-    expect(trimmedDurationMs(edited)).toBe(7000)
+describe('경량 편집: 앞뒤 트리밍 (양끝 클립 경계)', () => {
+  it("앞 트림('start')은 첫 클립 시작을 올린다", () => {
+    const edited = setClipBoundary(base, 'start', 2000)
+    expect(edited.clips[0].sourceStartMs).toBe(2000)
+    expect(edited.clips[0].sourceEndMs).toBe(12000)
+    // 출력 길이는 남은 창(2000~12000)만큼.
+    expect(outputDurationMs(edited)).toBe(10000)
   })
 
-  it('한쪽만 바꿔도 나머지는 유지된다', () => {
-    const edited = trimRecipe(base, { startMs: 3000 })
-    expect(edited.trim).toEqual({ startMs: 3000, endMs: 12000 })
+  it("뒤 트림('end')은 마지막 클립 끝을 내린다", () => {
+    const edited = setClipBoundary(base, 'end', 9000)
+    expect(edited.clips[base.clips.length - 1].sourceEndMs).toBe(9000)
+    expect(outputDurationMs(edited)).toBe(9000)
   })
 
-  it('창을 [0, durationMs] 안으로 클램핑한다', () => {
-    const edited = trimRecipe(base, { startMs: -500, endMs: 99999 })
-    expect(edited.trim).toEqual({ startMs: 0, endMs: 12000 })
+  it('경계를 [0, durationMs] 안으로 클램핑한다', () => {
+    expect(setClipBoundary(base, 'start', -500).clips[0].sourceStartMs).toBe(0)
+    expect(setClipBoundary(base, 'end', 99999).clips[0].sourceEndMs).toBe(12000)
   })
 
-  it('startMs가 endMs를 지나치지 않게 막는다', () => {
-    const edited = trimRecipe(base, { startMs: 9000, endMs: 5000 })
-    expect(edited.trim.startMs).toBeLessThan(edited.trim.endMs)
+  it('앞 경계가 클립 끝을 지나치지 않게 막는다', () => {
+    const edited = setClipBoundary(base, 'start', 99999)
+    expect(edited.clips[0].sourceStartMs).toBeLessThan(edited.clips[0].sourceEndMs)
   })
 
-  it('트림은 샘플링에 반영된다 — 창 밖은 원본 그대로', () => {
-    const edited = trimRecipe(base, { startMs: 2000, endMs: 9000 })
-    // 창 밖 시각(구간1 완전 줌인 t=8000은 창 안이라 그대로 줌, t=10000은 창 밖).
-    expect(sampleRecipe(base, 10000).scale).toBe(2)
-    expect(sampleRecipe(edited, 10000)).toEqual({ scale: 1, x: 500, y: 400 })
-    // 창 안은 편집 전과 동일하게 줌.
-    expect(sampleRecipe(edited, 8000).scale).toBe(2)
+  it('원본 레시피를 변형하지 않는다 (불변)', () => {
+    setClipBoundary(base, 'start', 3000)
+    expect(base.clips[0]).toEqual({ id: 'c1', sourceStartMs: 0, sourceEndMs: 12000, speed: 1 })
+  })
+})
+
+describe('경량 편집: 컷 — 분할·삭제', () => {
+  it('클립을 지정 지점에서 둘로 나눈다 (인접·속도 물림·새 id)', () => {
+    const edited = splitClip(base, 'c1', 5000)
+    expect(edited.clips).toHaveLength(2)
+    expect(edited.clips[0]).toEqual({ id: 'c1', sourceStartMs: 0, sourceEndMs: 5000, speed: 1 })
+    expect(edited.clips[1]).toEqual({ id: 'c2', sourceStartMs: 5000, sourceEndMs: 12000, speed: 1 })
+    // 인접(간극 없음)이라 분할만으로는 출력 길이가 그대로다.
+    expect(outputDurationMs(edited)).toBe(12000)
   })
 
-  it('원본 레시피의 트림을 변형하지 않는다 (불변)', () => {
-    trimRecipe(base, { startMs: 3000 })
-    expect(base.trim).toEqual({ startMs: 0, endMs: 12000 })
+  it('분할점이 클립 밖이거나 양끝이면 무시한다', () => {
+    expect(splitClip(base, 'c1', 0)).toBe(base)
+    expect(splitClip(base, 'c1', 12000)).toBe(base)
+    expect(splitClip(base, 'c1', 99999)).toBe(base)
+  })
+
+  it('없는 클립 id는 무시한다', () => {
+    expect(splitClip(base, 'nope', 5000)).toBe(base)
+  })
+
+  it('분할 후 한쪽을 삭제하면 컷(간극)이 생긴다', () => {
+    const split = splitClip(base, 'c1', 5000) // [0,5000] + [5000,12000]
+    const cut = deleteClip(split, 'c1') // 앞 조각 제거 → 간극 [0,5000]
+    expect(cut.clips).toEqual([{ id: 'c2', sourceStartMs: 5000, sourceEndMs: 12000, speed: 1 }])
+    expect(outputDurationMs(cut)).toBe(7000)
+  })
+
+  it('마지막 남은 클립 1개는 삭제하지 않는다 (출력 보존)', () => {
+    expect(deleteClip(base, 'c1')).toBe(base)
+  })
+
+  it('없는 클립 id 삭제는 무시한다', () => {
+    const split = splitClip(base, 'c1', 5000)
+    expect(deleteClip(split, 'nope')).toBe(split)
+  })
+
+  it('원본 레시피를 변형하지 않는다 (불변)', () => {
+    splitClip(base, 'c1', 5000)
+    expect(base.clips).toHaveLength(1)
+  })
+})
+
+describe('경량 편집: 클립 속도', () => {
+  it('지정 클립의 속도를 바꾸고 출력 길이가 압축된다', () => {
+    const edited = setClipSpeed(base, 'c1', 2)
+    expect(edited.clips[0].speed).toBe(2)
+    expect(outputDurationMs(edited)).toBe(6000) // 12000 / 2
+  })
+
+  it('허용 이산값(0.5/1/1.5/2) 중 가장 가까운 값으로 스냅한다', () => {
+    expect(setClipSpeed(base, 'c1', 1.9).clips[0].speed).toBe(2)
+    expect(setClipSpeed(base, 'c1', 0.6).clips[0].speed).toBe(0.5)
+    expect(setClipSpeed(base, 'c1', 5).clips[0].speed).toBe(2)
+  })
+
+  it('없는 클립 id는 무시한다', () => {
+    expect(setClipSpeed(base, 'nope', 2)).toBe(base)
+  })
+
+  it('한 클립의 속도만 바꾸고 다른 클립은 보존한다', () => {
+    const split = splitClip(base, 'c1', 6000) // c1 [0,6000], c2 [6000,12000]
+    const edited = setClipSpeed(split, 'c2', 2)
+    expect(edited.clips[0].speed).toBe(1)
+    expect(edited.clips[1].speed).toBe(2)
+    // 6000(원속) + 6000/2 = 9000.
+    expect(outputDurationMs(edited)).toBe(9000)
+  })
+
+  it('원본 레시피를 변형하지 않는다 (불변)', () => {
+    setClipSpeed(base, 'c1', 2)
+    expect(base.clips[0].speed).toBe(1)
   })
 })

@@ -2,7 +2,7 @@
  * 경량 스타일 프리셋 v1 — 배경/패딩·커서 스타일 번들만 다루는 순수 함수(#77, #58 결정 4).
  *
  * 프리셋은 렌더 레시피의 부분집합이다: `background` 전체 + `cursor`의 `size`·`smoothingMs`만.
- * 줌 구간·트림·배지·키 오버레이, 커서의 키프레임/클릭(녹화별 이벤트 데이터)은 프리셋에
+ * 줌 구간·클립 시퀀스·배지·키 오버레이, 커서의 키프레임/클릭(녹화별 이벤트 데이터)은 프리셋에
  * 담기지 않는다 — 경량 편집 헌장 그대로, 녹화별 편집과 스타일 프리셋은 별개다.
  *
  * extractStylePreset은 현재 레시피에서 스타일만 골라내고, applyStylePreset은 그 스타일을
@@ -40,7 +40,7 @@ export function extractStylePreset(recipe: RenderRecipe, name: string, id: strin
 
 /**
  * 프리셋의 스타일을 레시피에 적용한다 — `background` 전체와 `cursor.size`/`smoothingMs`만
- * 덮어쓰고, 나머지(줌 구간·트림·배지·키 오버레이·커서 키프레임/클릭 등 녹화별 편집)는
+ * 덮어쓰고, 나머지(줌 구간·클립 시퀀스·배지·키 오버레이·커서 키프레임/클릭 등 녹화별 편집)는
  * 그대로 둔다.
  */
 export function applyStylePreset(recipe: RenderRecipe, preset: StylePreset): RenderRecipe {
