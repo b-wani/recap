@@ -1,9 +1,9 @@
 :root {
   color-scheme: dark;
 
-  /* Color — Recap 모노크롬 캔버스 */
-  --bg: #0a0a0b;
-  --surface: #141415;
+  /* Color — 무채색 골격 + 바이올렛 액센트 (Screen Studio 정합) */
+  --bg: #08080b;
+  --surface: #141519;
   --surface-2: #1a1a1c;
   --surface-3: #232326;
   --border: rgba(255, 255, 255, 0.08);
@@ -12,28 +12,32 @@
   --text-2: #a1a1a6;
   --text-3: #6e6e73;
 
-  /* Primary — 화이트(주요 액션) */
-  --primary: #f5f5f7;
-  --primary-hover: #e4e4e7;
-  --primary-ink: #0a0a0b;
+  /* Accent — 바이올렛(주요 액션·선택/활성 신호) */
+  --accent: #6c4df5;
+  --accent-bright: #8b5cf6;
+  --accent-ink: #f5f5f7;
 
   /* REC 레드 — 성역(녹화·삭제 전용) */
   --rec: #ff453a;
   --rec-hover: #ff5a4f;
 
-  /* 타임라인 줌 구간 — 뉴트럴 회색 */
-  --zoom: #55555a;
-  --zoom-hover: #6a6a70;
+  /* 타임라인 클립 구간 — 골드(파형/라벨 + 어두운 필) */
+  --clip: #c89b3c;
+  --clip-fill: #5e4514;
+
+  /* 타임라인 줌 구간 — 바이올렛 */
+  --zoom: #5b45f0;
+  --zoom-hover: #7059f2;
 
   /* 경고·트림 핸들 — 앰버(레드 아님) */
   --warn: #ff9f0a;
 
   /* 선택/활성 신호 + 오버레이 딤 */
-  --selection: #f5f5f7;
+  --selection: var(--accent);
   --scrim: rgba(10, 10, 11, 0.55);
 
   /* Shadow — 선택 글로우 + 엘리베이션 2단계 */
-  --shadow-selection-glow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 12px rgba(255, 255, 255, 0.18);
+  --shadow-selection-glow: 0 0 0 1px rgba(108, 77, 245, 0.5), 0 0 12px rgba(108, 77, 245, 0.35);
   --shadow-1: 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-2: 0 8px 32px rgba(0, 0, 0, 0.5);
 
@@ -173,30 +177,30 @@ body {
   color: var(--text-3);
 }
 
-/* 익스포트 — 주요 액션(화이트 primary·pill). */
+/* 익스포트 — 주요 액션(바이올렛 accent·pill). */
 .btn-export {
-  background: var(--primary);
+  background: var(--accent);
   border-color: transparent;
-  color: var(--primary-ink);
+  color: var(--accent-ink);
   border-radius: var(--radius-pill);
 }
 
 .btn-export:hover {
-  background: var(--primary-hover);
+  background: var(--accent-bright);
   filter: none;
 }
 
-/* 상단 바 익스포트 — 화면에서 가장 미는 primary 액션(화이트, 굵게). */
+/* 상단 바 익스포트 — 화면에서 가장 미는 주요 액션(바이올렛, 굵게). */
 .btn-export-primary {
-  background: var(--primary);
+  background: var(--accent);
   border-color: transparent;
-  color: var(--primary-ink);
+  color: var(--accent-ink);
   border-radius: var(--radius-pill);
   font-weight: 600;
 }
 
 .btn-export-primary:hover {
-  background: var(--primary-hover);
+  background: var(--accent-bright);
   filter: none;
 }
 
@@ -690,15 +694,15 @@ body {
   font-family: var(--font-ui);
 }
 
-/* 활성 선택 — 화이트 primary */
+/* 활성 선택 — 바이올렛 accent */
 .btn-scale.is-active {
-  background: var(--primary);
+  background: var(--accent);
   border-color: transparent;
-  color: var(--primary-ink);
+  color: var(--accent-ink);
 }
 
 .btn-scale.is-active:hover {
-  background: var(--primary-hover);
+  background: var(--accent-bright);
   filter: none;
 }
 
@@ -805,8 +809,8 @@ body {
 }
 
 .seg-btn.is-active {
-  background: var(--primary);
-  color: var(--primary-ink);
+  background: var(--accent);
+  color: var(--accent-ink);
   font-weight: 600;
 }
 
@@ -857,10 +861,10 @@ body {
   overflow: hidden;
 }
 
-/* 진행 바 채움 — 화이트 fill. */
+/* 진행 바 채움 — 바이올렛 fill. */
 .progress-fill {
   height: 100%;
-  background: var(--primary);
+  background: var(--accent);
   border-radius: var(--radius-pill);
   transition: width var(--motion-fast) var(--motion-easing);
 }
@@ -1023,13 +1027,13 @@ body {
   height: 40px;
 }
 
-/* 필름스트립 — 클립 레인의 시간축 질감(썸네일 스트립 대체 텍스처). */
+/* 필름스트립 — 클립 레인의 시간축 질감(파형 대체 텍스처, 골드 클립 트랙). */
 .tl-film {
   position: absolute;
   inset: 0;
   background:
-    repeating-linear-gradient(90deg, color-mix(in srgb, var(--bg) 30%, var(--surface-2)) 0 1px, transparent 1px 64px),
-    linear-gradient(90deg, var(--surface-3), var(--surface-2));
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--clip) 45%, transparent) 0 1px, transparent 1px 64px),
+    linear-gradient(90deg, color-mix(in srgb, var(--clip-fill) 70%, var(--surface-3)), var(--clip-fill));
 }
 
 /* 트림 창 밖 구간 — 최종 영상에서 제외됨(다크 캔버스 스크림). */
@@ -1042,7 +1046,7 @@ body {
   z-index: 1;
 }
 
-/* 줌 구간 블록 — 뉴트럴 회록색. */
+/* 줌 구간 블록 — 바이올렛. */
 .tl-seg {
   position: absolute;
   top: var(--space-2);
@@ -1434,8 +1438,8 @@ body {
 }
 
 .mode-seg.is-active {
-  background: var(--primary);
-  color: var(--primary-ink);
+  background: var(--accent);
+  color: var(--accent-ink);
   font-weight: 600;
 }
 
@@ -1640,8 +1644,8 @@ body {
 }
 
 .welcome-chapter.is-active .welcome-chapter-num {
-  background: var(--primary);
-  color: var(--primary-ink);
+  background: var(--accent);
+  color: var(--accent-ink);
 }
 
 .welcome-panel {
@@ -1682,7 +1686,7 @@ body {
 
 .welcome-dot.is-active {
   width: 18px;
-  background: var(--primary);
+  background: var(--accent);
 }
 
 .welcome-btns {
@@ -1777,7 +1781,7 @@ body {
   height: 10px;
   margin: -5px;
   background: var(--selection);
-  border: 1px solid var(--primary-ink);
+  border: 1px solid var(--accent-ink);
   border-radius: 2px;
 }
 
