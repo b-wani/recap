@@ -2,10 +2,11 @@ import { formatMB } from '../format'
 import {
   GIF_HEIGHTS,
   GIF_FPS_OPTIONS,
+  type ExportFormat,
   type GifSelection
 } from '../../../shared/export-preset'
 
-/** 익스포트 진행 상태. 미리보기 패널의 하단 액션을 이 상태만 보고 그린다. export 출력은 GIF 단일. */
+/** 익스포트 진행 상태. 미리보기 패널의 하단 액션을 이 상태만 보고 그린다. */
 export type ExportStatus =
   | { phase: 'idle' }
   | { phase: 'encoding'; renderedFrames: number; totalFrames: number }
@@ -15,28 +16,36 @@ export type ExportStatus =
 /** 용량 경고 문구 — Dooray 본문 인라인 렌더 부담(#118) + 재-export 유도(MP4 폴백 없음). */
 const LIMIT_LABEL = 'Dooray 본문에 인라인으로 넣기엔 큰 용량 — 해상도/fps를 낮춰 다시 내보내기'
 
-/** 익스포트 액션(해상도·fps 선택 + GIF 내보내기) + 완료 후 Finder 열기·경로 복사·용량 경고 (AC1·2·3·4). */
+/**
+ * 익스포트 액션(포맷·해상도·fps 선택 + 내보내기) + 완료 후 Finder 열기·경로 복사·용량 경고.
+ * 포맷 토글(GIF/MP4)로 인코더를 분기한다(#155). 포맷 우선 패널·품질 티어 재구조화는 후속 #146.
+ */
 export function ExportPanel({
   status,
+  format,
+  onFormatChange,
   selection,
   onSelectionChange,
   sourceHeight,
   onExport
 }: {
   status: ExportStatus
+  format: ExportFormat
+  onFormatChange: (next: ExportFormat) => void
   selection: GifSelection
   onSelectionChange: (next: GifSelection) => void
   /** 원본 세로(px) — 초과 해상도 옵션을 비활성하는 상한. */
   sourceHeight: number
   onExport: () => void
 }): JSX.Element {
+  const formatLabel = format.toUpperCase()
   if (status.phase === 'encoding') {
     const pct =
       status.totalFrames > 0 ? Math.round((status.renderedFrames / status.totalFrames) * 100) : 0
     return (
       <div className="export-progress">
         <div className="export-progress-head">
-          <span>GIF 익스포트 중…</span>
+          <span>{formatLabel} 익스포트 중…</span>
           <span>{pct}%</span>
         </div>
         <div className="progress-bar">
@@ -50,7 +59,7 @@ export function ExportPanel({
     return (
       <div className="export-done">
         <div className="export-done-head">
-          <span>GIF 저장 완료</span>
+          <span>{formatLabel} 저장 완료</span>
           <span className="export-done-size">{formatMB(status.sizeBytes)}</span>
         </div>
         {status.exceedsLimit && <p className="export-warn">⚠ {LIMIT_LABEL}</p>}
@@ -70,6 +79,17 @@ export function ExportPanel({
     <div className="export-done">
       {status.phase === 'error' && <p className="export-warn">익스포트 실패: {status.message}</p>}
       <div className="export-controls">
+        <label className="export-field">
+          <span className="export-field-label">포맷</span>
+          <select
+            className="export-select"
+            value={format}
+            onChange={(e) => onFormatChange(e.target.value as ExportFormat)}
+          >
+            <option value="gif">GIF</option>
+            <option value="mp4">MP4</option>
+          </select>
+        </label>
         <label className="export-field">
           <span className="export-field-label">해상도</span>
           <select
@@ -104,7 +124,7 @@ export function ExportPanel({
         </label>
       </div>
       <button className="btn btn-export" onClick={onExport}>
-        GIF 내보내기
+        {formatLabel} 내보내기
       </button>
     </div>
   )

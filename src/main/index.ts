@@ -52,6 +52,7 @@ import {
 } from '../shared/ipc'
 import { buildWindowHash, type WindowRole } from '../shared/window-url'
 import type { RenderRecipe } from '../shared/recipe'
+import { extensionForFormat, type ExportFormat } from '../shared/export-preset'
 import { extractStylePreset, type StylePreset } from '../shared/style-preset'
 import type { PermissionKind, PermissionStatus } from '../shared/onboarding'
 import { overlayRectToSourceRect } from '../shared/area-rect'
@@ -941,11 +942,16 @@ function registerIpc(): void {
 
   ipcMain.handle(IpcChannel.EditorOpen, (_e, folder: string) => openEditorForFolder(folder))
 
-  // 렌더러가 인코딩한 GIF 바이트를 녹화 폴더에 저장한다(export.gif 고정).
+  // 렌더러가 인코딩한 바이트(GIF/MP4)를 녹화 폴더에 `export.{ext}`로 저장한다(#155 포맷 일반화).
   ipcMain.handle(
     IpcChannel.ExportSave,
-    async (_e, bytes: ArrayBuffer, folder: string): Promise<ExportSaveResult> => {
-      const path = join(folder, 'export.gif')
+    async (
+      _e,
+      bytes: ArrayBuffer,
+      folder: string,
+      format: ExportFormat
+    ): Promise<ExportSaveResult> => {
+      const path = join(folder, `export.${extensionForFormat(format)}`)
       const buffer = Buffer.from(bytes)
       await writeFile(path, buffer)
       // 익스포트 완료 = 진입 플로우의 종착점. 파일을 클립보드에 참조로 복사해
