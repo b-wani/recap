@@ -5,13 +5,25 @@ import type { OnboardingStepId } from '../../../shared/onboarding'
  * 자동 효과, 경량 편집, 익스포트, 익스포트 프리셋)를 그대로 쓴다. Cap의 문구·에셋을
  * 복사하지 않는다(ADR 0002).
  *
- * 권한 단계(permissions)는 본문이 없다 — 후속 슬라이스(#47)의 실제 권한 UI가 채운다.
+ * 권한 단계(permissions)는 왜·어디서 권한을 켜는지 안내하는 본문을 둔다. 상태 표시·허용
+ * 버튼 등 상호작용은 WelcomeView의 PermissionStep(#47 IPC 연동)이 이 본문 아래에 얹힌다.
  */
 export function OnboardingStepBody({ id }: { id: OnboardingStepId }): JSX.Element | null {
   switch (id) {
     case 'permissions':
-      // 권한 단계는 다른 슬라이스(#47) 소관 — 본문을 두지 않는다.
-      return null
+      return (
+        <div className="onboarding-body">
+          <p className="onboarding-lead">
+            Recap이 화면을 담으려면 macOS <b>화면 녹화</b> 권한이, 전역 단축키에는{' '}
+            <b>손쉬운 사용</b> 권한이 필요해요. 아래에서 두 권한을 모두 허용하면 다음 단계로
+            넘어갈 수 있어요.
+          </p>
+          <p className="onboarding-note">
+            권한은 시스템 설정 &gt; 개인정보 보호 및 보안 &gt; 화면 기록(과 손쉬운 사용)에서
+            관리해요. 켜고 돌아오면 상태가 자동으로 갱신됩니다.
+          </p>
+        </div>
+      )
 
     case 'overview':
       return (

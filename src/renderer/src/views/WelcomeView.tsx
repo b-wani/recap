@@ -114,7 +114,10 @@ export function WelcomeView(): JSX.Element {
       <section className="welcome-panel">
         <div className="welcome-content">
           {isPermissionStep ? (
-            <PermissionStep permissions={permissions} />
+            <>
+              <OnboardingStepBody id={step.id} />
+              <PermissionStep permissions={permissions} />
+            </>
           ) : (
             <OnboardingStepBody id={step.id} />
           )}
