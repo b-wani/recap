@@ -48,9 +48,9 @@ const api = {
   /** 저장된 파일을 Finder에서 연다. */
   revealExport: (path: string): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.ExportReveal, path),
-  /** 저장된 파일 경로를 클립보드에 복사한다. */
-  copyExportPath: (path: string): Promise<void> =>
-    ipcRenderer.invoke(IpcChannel.ExportCopyPath, path),
+  /** 저장된 파일(실제 미디어)을 클립보드에 파일 참조로 복사한다(#159). */
+  copyExportMedia: (path: string): Promise<void> =>
+    ipcRenderer.invoke(IpcChannel.ExportCopyMedia, path),
   /** 녹화 제목을 바꿔 manifest에 저장한다(#79). */
   renameRecording: (folder: string, title: string): Promise<void> =>
     ipcRenderer.invoke(IpcChannel.RenameRecording, folder, title),

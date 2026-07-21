@@ -18,15 +18,19 @@ import {
   BufferTarget,
   CanvasSource,
   canEncodeVideo,
-  QUALITY_VERY_HIGH
+  Quality,
+  QUALITY_VERY_HIGH,
+  QUALITY_HIGH,
+  QUALITY_MEDIUM,
+  QUALITY_LOW
 } from 'mediabunny'
 import { sampleComposition, type RenderRecipe } from '../../shared/recipe'
 import { trimmedDurationMs } from '../../shared/recipe.edit'
 import {
   resolveGifConfig,
   resolveMp4Config,
-  type ExportPreset,
-  type GifSelection
+  type GifConfig,
+  type ExportSelection
 } from '../../shared/export-preset'
 import { drawComposition } from './compose'
 
@@ -36,18 +40,85 @@ export interface ExportProgress {
 }
 
 /**
- * 원본 영상 + 렌더 레시피 + 프리셋 + 선택(해상도·fps) → GIF 바이트.
- * sampleComposition·drawComposition로 미리보기와 같은 합성(배경/배지·커서·트림)을
- * 그린 뒤, 프레임마다 팔레트를 양자화해 gifenc로 인코딩한다. 진행률은 onProgress로 보고한다.
+ * 익스포트 취소 토큰 — 전체화면 진행 화면의 "Stop export"가 aborted를 세우면 인코딩 루프가
+ * 다음 프레임 경계에서 AbortError를 던진다. AbortController를 안 쓰는 이유는 렌더러 로컬
+ * 협조적 취소면 충분하고(네트워크·워커 없음) 타입이 단순해서다.
+ */
+export interface ExportSignal {
+  aborted: boolean
+}
+
+/** 취소 토큰이 세워졌으면 AbortError를 던진다(호출부가 name으로 취소를 구분해 idle 복귀). */
+function throwIfAborted(signal?: ExportSignal): void {
+  if (signal?.aborted) {
+    const err = new Error('익스포트가 취소되었습니다')
+    err.name = 'AbortError'
+    throw err
+  }
+}
+
+// ─── 8×8 Bayer ordered dither ─────────────────────────────────────────────────
+// GIF Studio 티어 전용 밴딩 억제(#146 §4). quantize 앞단에서 RGBA 복사본에 적용한다 —
+// gifenc는 디더를 내장하지 않으므로(프로토타입 harness와 동일 방식) 여기서 재현한다.
+const BAYER8 = [
+  [0, 32, 8, 40, 2, 34, 10, 42],
+  [48, 16, 56, 24, 50, 18, 58, 26],
+  [12, 44, 4, 36, 14, 46, 6, 38],
+  [60, 28, 52, 20, 62, 30, 54, 22],
+  [3, 35, 11, 43, 1, 33, 9, 41],
+  [51, 19, 59, 27, 49, 17, 57, 25],
+  [15, 47, 7, 39, 13, 45, 5, 37],
+  [63, 31, 55, 23, 61, 29, 53, 21]
+]
+// 정규화 임계값 -0.5..+0.484 (값/64 - 0.5).
+const BAYER_THRESH = BAYER8.map((row) => row.map((v) => v / 64 - 0.5))
+
+/**
+ * 프레임 RGBA에 Bayer ordered dither를 적용한 복사본을 돌려준다(알파 불변). spread=확산 강도.
+ * spread가 0이면 원본 복사만 하고, 아니면 화소마다 고정 패턴 오프셋을 더해 밴딩을 잘게 흩는다.
+ */
+function ditherRgba(src: Uint8ClampedArray, width: number, height: number, spread: number): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(src)
+  if (spread <= 0) return out
+  for (let y = 0; y < height; y++) {
+    const brow = BAYER_THRESH[y & 7]
+    for (let x = 0; x < width; x++) {
+      const o = (y * width + x) * 4
+      const t = brow[x & 7] * spread
+      out[o] = src[o] + t
+      out[o + 1] = src[o + 1] + t
+      out[o + 2] = src[o + 2] + t
+      // 알파 유지
+    }
+  }
+  return out
+}
+
+/**
+ * MP4 티어 QP → mediabunny subjective Quality 사상. mediabunny는 per-frame QP를 타입 API로
+ * 노출하지 않아 QP 의도를 5단계 Quality로 근사한다(결정 문서의 "품질 타깃" 의도와 정합).
+ */
+function qualityForQp(qp: number): Quality {
+  if (qp <= 18) return QUALITY_VERY_HIGH
+  if (qp <= 23) return QUALITY_HIGH
+  if (qp <= 28) return QUALITY_MEDIUM
+  return QUALITY_LOW
+}
+
+/**
+ * 원본 영상 + 렌더 레시피 + 선택(해상도·fps·티어) → GIF 바이트.
+ * sampleComposition·drawComposition로 미리보기와 같은 합성(배경/배지·커서·트림)을 그린 뒤,
+ * 프레임마다 팔레트를 양자화해 gifenc로 인코딩한다. Studio 티어면 quantize 앞단에 Bayer 디더를
+ * 적용한다(#146 §4). 루프는 무한 반복 고정(gifenc GIFEncoder 기본 repeat=0). 진행률은 onProgress로 보고한다.
  */
 export async function renderRecipeToGif(
   video: HTMLVideoElement,
   recipe: RenderRecipe,
-  preset: ExportPreset,
-  selection: GifSelection,
-  onProgress?: (p: ExportProgress) => void
+  selection: ExportSelection,
+  onProgress?: (p: ExportProgress) => void,
+  signal?: ExportSignal
 ): Promise<ArrayBuffer> {
-  const config = resolveGifConfig(preset, recipe.source, selection)
+  const config: GifConfig = resolveGifConfig(recipe.source, selection)
   // 최종 GIF 길이도 트림된 길이를 따른다.
   const outputDurationMs = trimmedDurationMs(recipe)
 
@@ -71,6 +142,7 @@ export async function renderRecipeToGif(
 
   try {
     for (let i = 0; i < totalFrames; i++) {
+      throwIfAborted(signal)
       const tSec = i * frameDurationSec
       // 출력 타임라인은 0부터지만, 원본에서는 트림 시작 지점부터 샘플링·시크한다.
       const sourceMs = recipe.trim.startMs + tSec * 1000
@@ -79,8 +151,10 @@ export async function renderRecipeToGif(
       drawComposition(ctx, video, comp, recipe.source)
 
       const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
-      const palette = quantize(data, config.maxColors)
-      const index = applyPalette(data, palette)
+      // Studio 티어(dither>0)면 밴딩 억제용 Bayer 디더를 quantize 앞단에 적용한다(#146 §4).
+      const pixels = ditherRgba(data, canvas.width, canvas.height, config.dither)
+      const palette = quantize(pixels, config.maxColors)
+      const index = applyPalette(pixels, palette)
       encoder.writeFrame(index, canvas.width, canvas.height, { palette, delay: frameDelayMs })
       onProgress?.({ renderedFrames: i + 1, totalFrames })
     }
@@ -106,16 +180,19 @@ export async function renderRecipeToGif(
 export async function renderRecipeToMp4(
   video: HTMLVideoElement,
   recipe: RenderRecipe,
-  selection: GifSelection,
-  onProgress?: (p: ExportProgress) => void
+  selection: ExportSelection,
+  onProgress?: (p: ExportProgress) => void,
+  signal?: ExportSignal
 ): Promise<ArrayBuffer> {
   const config = resolveMp4Config(recipe.source, selection)
+  // 티어 QP를 mediabunny subjective Quality로 사상한다(품질 티어 → 인코더 파라미터, #146).
+  const quality = qualityForQp(config.qp)
 
   // 모든 설정은 인코딩 전 isConfigSupported로 사전 게이팅한다(칩·OS별 상한 상이). 미지원 시 명확히 실패.
   const supported = await canEncodeVideo('avc', {
     width: config.width,
     height: config.height,
-    bitrate: QUALITY_VERY_HIGH,
+    bitrate: quality,
     fullCodecString: config.codec,
     latencyMode: config.latencyMode,
     hardwareAcceleration: config.hardwareAcceleration
@@ -138,7 +215,7 @@ export async function renderRecipeToMp4(
   const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() })
   const source = new CanvasSource(canvas, {
     codec: 'avc',
-    bitrate: QUALITY_VERY_HIGH,
+    bitrate: quality,
     fullCodecString: config.codec,
     latencyMode: config.latencyMode,
     hardwareAcceleration: config.hardwareAcceleration
@@ -154,6 +231,7 @@ export async function renderRecipeToMp4(
 
   try {
     for (let i = 0; i < totalFrames; i++) {
+      throwIfAborted(signal)
       const tSec = i * frameDurationSec
       // 출력 타임라인은 0부터지만, 원본에서는 트림 시작 지점부터 샘플링·시크한다.
       const sourceMs = recipe.trim.startMs + tSec * 1000

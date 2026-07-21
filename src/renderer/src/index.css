@@ -211,8 +211,9 @@ body {
   top: calc(100% + var(--space-2));
   right: 0;
   z-index: 10;
-  width: 260px;
-  padding: var(--space-3);
+  width: 440px;
+  max-width: calc(100vw - var(--space-5));
+  padding: var(--space-4);
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-m);
@@ -745,15 +746,25 @@ body {
   flex: none;
 }
 
-/* ── 익스포트 ─────────────────────────────────────── */
-/* 해상도·fps 드롭다운 2개(가로 나란히) + 아래 단일 "GIF 내보내기" 버튼(#122). */
-.export-controls {
+/* ── 익스포트 (포맷-우선 패널, #159) ─────────────────── */
+/* Export as · Frame rate · Output Size · Quality 4티어 세그먼트 + 예상치 + 액션(SS 모작). */
+.export-panel {
   display: flex;
-  gap: var(--space-2);
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* 상단 2열: Export as + Frame rate 나란히. */
+.export-grid {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.export-grid .export-field {
+  flex: 1;
 }
 
 .export-field {
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -762,23 +773,66 @@ body {
 }
 
 .export-field-label {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
+  color: var(--text-2);
 }
 
-.export-select {
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
+/* 세그먼트 토글 — 활성 항목만 primary로 채운다. */
+.seg {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-s);
-  background: var(--surface);
-  color: var(--text-1);
+}
+
+.seg-btn {
+  flex: 1;
+  padding: var(--space-2) var(--space-2);
+  border: none;
+  border-radius: calc(var(--radius-s) - 2px);
+  background: transparent;
+  color: var(--text-2);
   font-size: var(--text-sm);
   cursor: pointer;
+  white-space: nowrap;
+}
+
+.seg-btn:hover:not(:disabled):not(.is-active) {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.seg-btn.is-active {
+  background: var(--primary);
+  color: var(--primary-ink);
+  font-weight: 600;
+}
+
+.seg-btn:disabled {
+  color: var(--text-3);
+  cursor: not-allowed;
+}
+
+/* 선택 티어 설명문 — SS 패널 하단 문구. */
+.export-tier-desc {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  line-height: 1.4;
+}
+
+/* 사전 추정치(예상 시간·최대 용량). */
+.export-estimate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 .btn-export {
-  width: 100%;
+  flex: 1;
   padding: var(--space-3) 0;
 }
 
@@ -843,6 +897,57 @@ body {
 .export-warn {
   color: var(--warn);
   font-size: var(--text-xs);
+}
+
+/* ── 전체화면 익스포트 진행 화면 (SS 모작, #159) ────────── */
+.export-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+.export-overlay-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: min(360px, 70vw);
+  text-align: center;
+}
+
+/* 소스 → 목적 경로 알약. */
+.export-pill {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+}
+
+.export-overlay-title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.export-overlay-bar {
+  width: 100%;
+}
+
+.export-overlay-time {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.export-overlay-stop {
+  margin-top: var(--space-3);
 }
 
 /* ── 타임라인 영역 (하단 전폭: 재생 컨트롤 + 트랙) ── */

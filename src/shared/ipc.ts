@@ -23,8 +23,8 @@ export const IpcChannel = {
   ExportSave: 'export:save',
   /** 저장된 파일을 Finder에서 연다. */
   ExportReveal: 'export:reveal',
-  /** 저장된 파일 경로를 클립보드에 복사한다. */
-  ExportCopyPath: 'export:copy-path',
+  /** 저장된 파일(실제 미디어)을 클립보드에 파일 참조로 복사한다 — Dooray 본문에 ⌘V 첨부(#159). */
+  ExportCopyMedia: 'export:copy-media',
   /** 녹화 제목을 바꿔 manifest에 저장한다(#79 라이브러리 이름변경). */
   RenameRecording: 'recordings:rename',
   /** 확인 다이얼로그 후 녹화 폴더를 휴지통으로 옮긴다. 취소되면 false. */

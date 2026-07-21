@@ -966,8 +966,9 @@ function registerIpc(): void {
     shell.showItemInFolder(path)
   })
 
-  ipcMain.handle(IpcChannel.ExportCopyPath, (_e, path: string) => {
-    clipboard.writeText(path)
+  // "클립보드로 복사" — 저장된 실제 미디어 파일을 클립보드에 파일 참조로 올린다(경로 텍스트에서 격상, #159).
+  ipcMain.handle(IpcChannel.ExportCopyMedia, (_e, path: string) => {
+    copyFileReferenceToClipboard(path)
   })
 
   // 라이브러리 항목 관리(#79): 이름변경 · 삭제(확인 후 휴지통) · 파일 위치 열기.

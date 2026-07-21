@@ -10,18 +10,28 @@ import { deleteZoomSegment, trimmedDurationMs } from '../../../shared/recipe.edi
 import { applyStylePreset, type StylePreset } from '../../../shared/style-preset'
 import { drawComposition } from '../compose'
 import {
-  DOORAY_GIF_PRESET,
   DEFAULT_SELECTION,
   defaultHeightForSource,
+  reconcileSelectionForFormat,
+  resolveGifConfig,
+  resolveMp4Config,
+  estimateSizeBytes,
+  estimateExportSeconds,
   exceedsSizeLimit,
+  extensionForFormat,
   type ExportFormat,
-  type GifSelection
+  type ExportSelection
 } from '../../../shared/export-preset'
-import { renderRecipeToGif, renderRecipeToMp4 } from '../export'
+import { renderRecipeToGif, renderRecipeToMp4, type ExportSignal } from '../export'
 import { formatElapsed } from '../format'
 import { Timeline } from '../components/Timeline'
 import { Sidebar } from '../components/Sidebar'
-import { ExportPanel, type ExportStatus } from '../components/ExportPanel'
+import {
+  ExportPanel,
+  ExportProgressOverlay,
+  type ExportStatus,
+  type ExportIntent
+} from '../components/ExportPanel'
 
 /**
  * 합성된 캔버스의 현재 프레임을 작은 JPEG로 줄여 녹화 폴더에 썸네일 캐시로 저장한다.
@@ -58,11 +68,13 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
   // 선택 상태는 이 하나로 소유한다(줌 구간 인덱스 문자열, 없으면 null). 빈 곳 클릭·Esc로 해제.
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [exportStatus, setExportStatus] = useState<ExportStatus>({ phase: 'idle' })
-  // GIF 익스포트 선택(해상도·fps). 창 열린 동안 유지되고 새 에디터 창이면 기본값(720p/50)으로 리셋된다
-  // (창 하나가 클립 하나 — 컴포넌트 재마운트가 곧 리셋). 원본이 720p 미만이면 메타데이터 로드 시 폴백한다.
-  const [selection, setSelection] = useState<GifSelection>(DEFAULT_SELECTION)
+  // 익스포트 선택(해상도·fps·품질 티어, #159). 창 열린 동안 유지되고 새 에디터 창이면 기본값으로
+  // 리셋된다(창 하나가 클립 하나 — 컴포넌트 재마운트가 곧 리셋). 원본이 작으면 메타데이터 로드 시 폴백.
+  const [selection, setSelection] = useState<ExportSelection>(DEFAULT_SELECTION)
   // 익스포트 출력 포맷(#155). 기본 GIF(recap 차별화 축), MP4는 원화질 출력. 창 재마운트가 곧 리셋.
   const [format, setFormat] = useState<ExportFormat>('gif')
+  // 진행 중 익스포트의 취소 토큰 — 전체화면 진행 화면의 Stop export가 aborted를 세운다.
+  const exportSignalRef = useRef<ExportSignal | null>(null)
   const [playing, setPlaying] = useState(true)
   const [currentMs, setCurrentMs] = useState(0)
   // 상단 바 익스포트 버튼 아래 팝오버 열림 상태(D3: 익스포트 동선을 상단 바 primary로).
@@ -167,8 +179,8 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     canvas.width = next.source.width
     canvas.height = next.source.height
     setRecipe(next)
-    // 기본 해상도는 720p지만 원본을 넘기지 않는다 — 원본이 720p 미만이면 가능한 최대 옵션으로 폴백.
-    setSelection((s) => ({ ...s, height: defaultHeightForSource(next.source.height) }))
+    // 기본 해상도는 포맷 기본값이지만 원본을 넘기지 않는다 — 원본이 작으면 가능한 최대 옵션으로 폴백.
+    setSelection((s) => ({ ...s, height: defaultHeightForSource(format, next.source.height) }))
   }
 
   // 재생 루프: 트림 창 안에서만 반복 재생하고, 매 프레임 합성 파라미터를 샘플링해 그대로 그린다.
@@ -209,30 +221,62 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
     return () => cancelAnimationFrame(raf)
   }, [state.folder])
 
-  // 익스포트: 미리보기와 동일한 레시피로 원본을 선택 포맷(GIF/MP4)으로 인코딩해 폴더에 저장한다.
-  // 합성은 공유하고 인코더만 분기한다(#155). 용량 경고는 Dooray 인라인 대상인 GIF에만 적용한다.
-  const handleExport = async (): Promise<void> => {
+  // 포맷 토글: 선택을 새 포맷의 허용 범위로 재조정한다(예: MP4 60fps→GIF 50fps, 4K→1080p).
+  // 해상도는 원본 상한 안에서 포맷 기본으로 다시 폴백한다(포맷별 옵션이 달라서).
+  const onFormatChange = (next: ExportFormat): void => {
+    setFormat(next)
+    setSelection((s) => {
+      const reconciled = reconcileSelectionForFormat(next, s)
+      const src = recipeRef.current?.source.height ?? 0
+      return { ...reconciled, height: defaultHeightForSource(next, src) }
+    })
+  }
+
+  // 익스포트: 미리보기와 동일한 레시피로 원본을 선택 포맷(GIF/MP4)으로 인코딩한다.
+  // 합성은 공유하고 인코더만 분기한다(#155). intent가 clipboard면 저장 후 실제 미디어를 클립보드로
+  // 복사한다(#159). 용량 경고는 Dooray 인라인 대상인 GIF에만 적용한다.
+  const handleExport = async (intent: ExportIntent): Promise<void> => {
     const video = videoRef.current
     const recipe = recipeRef.current
     if (!video || !recipe) return
-    setExportStatus({ phase: 'encoding', renderedFrames: 0, totalFrames: 0 })
+    const signal: ExportSignal = { aborted: false }
+    exportSignalRef.current = signal
+    setExportStatus({
+      phase: 'encoding',
+      renderedFrames: 0,
+      totalFrames: 0,
+      startedAt: Date.now()
+    })
     try {
+      const startedAt = Date.now()
       const onProgress = (p: { renderedFrames: number; totalFrames: number }): void =>
-        setExportStatus({ phase: 'encoding', ...p })
+        setExportStatus({ phase: 'encoding', ...p, startedAt })
       const bytes =
         format === 'mp4'
-          ? await renderRecipeToMp4(video, recipe, selection, onProgress)
-          : await renderRecipeToGif(video, recipe, DOORAY_GIF_PRESET, selection, onProgress)
+          ? await renderRecipeToMp4(video, recipe, selection, onProgress, signal)
+          : await renderRecipeToGif(video, recipe, selection, onProgress, signal)
       const { path, sizeBytes } = await window.recap.saveExport(bytes, state.folder, format)
+      if (intent === 'clipboard') await window.recap.copyExportMedia(path)
       setExportStatus({
         phase: 'done',
         path,
         sizeBytes,
-        exceedsLimit: format === 'gif' && exceedsSizeLimit(DOORAY_GIF_PRESET, sizeBytes)
+        exceedsLimit: format === 'gif' && exceedsSizeLimit(sizeBytes),
+        copied: intent === 'clipboard'
       })
     } catch (err) {
-      setExportStatus({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
+      // Stop export로 취소하면 조용히 idle로 되돌린다(에러 아님).
+      if (err instanceof Error && err.name === 'AbortError') setExportStatus({ phase: 'idle' })
+      else
+        setExportStatus({ phase: 'error', message: err instanceof Error ? err.message : String(err) })
+    } finally {
+      exportSignalRef.current = null
     }
+  }
+
+  // 전체화면 진행 화면의 Stop export — 취소 토큰을 세우면 인코딩 루프가 AbortError로 빠져나온다.
+  const onStopExport = (): void => {
+    if (exportSignalRef.current) exportSignalRef.current.aborted = true
   }
 
   const togglePlay = (): void => {
@@ -267,6 +311,25 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
 
   // 트림 반영 길이 (메타 바·재생 컨트롤에서 공유).
   const lengthMs = recipe ? trimmedDurationMs(recipe) : state.durationMs
+
+  // 사전 추정치(예상 시간·최대 용량) — 선택·포맷·트림 길이로 매번 다시 계산한다(순수, #159 AC7).
+  const estimate = ((): { sizeBytes: number; seconds: number; exceedsLimit: boolean } => {
+    if (!recipe) return { sizeBytes: 0, seconds: 0, exceedsLimit: false }
+    const config =
+      format === 'mp4'
+        ? resolveMp4Config(recipe.source, selection)
+        : resolveGifConfig(recipe.source, selection)
+    const sizeBytes = estimateSizeBytes(format, config, lengthMs, selection.tier)
+    return {
+      sizeBytes,
+      seconds: estimateExportSeconds(format, config, lengthMs),
+      exceedsLimit: format === 'gif' && exceedsSizeLimit(sizeBytes)
+    }
+  })()
+
+  // 전체화면 진행 화면용 소스→목적 라벨(SS 알약 모작).
+  const sourceLabel = state.target.title
+  const destLabel = `export.${extensionForFormat(format)}`
 
   return (
     <section className="editor">
@@ -314,16 +377,30 @@ export function EditorView({ context: state }: { context: EditorContext }): JSX.
               <ExportPanel
                 status={exportStatus}
                 format={format}
-                onFormatChange={setFormat}
+                onFormatChange={onFormatChange}
                 selection={selection}
                 onSelectionChange={setSelection}
                 sourceHeight={recipe?.source.height ?? 0}
+                estimate={estimate}
                 onExport={handleExport}
+                onClose={() => setExportOpen(false)}
               />
             </div>
           )}
         </div>
       </header>
+
+      {exportStatus.phase === 'encoding' && (
+        <ExportProgressOverlay
+          format={format}
+          renderedFrames={exportStatus.renderedFrames}
+          totalFrames={exportStatus.totalFrames}
+          startedAt={exportStatus.startedAt}
+          sourceLabel={sourceLabel}
+          destLabel={destLabel}
+          onStop={onStopExport}
+        />
+      )}
 
       {/* 3영역: 좌상단 캔버스 · 우측 사이드바 · 하단 전폭 타임라인 */}
       <div className="editor-body">
