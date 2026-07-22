@@ -204,7 +204,18 @@ export class Recorder {
     if (this.finalized) return
     this.finalized = true
 
-    const outcome = foldSidecarMessages(this.messages)
+    let outcome: ReturnType<typeof foldSidecarMessages>
+    try {
+      outcome = foldSidecarMessages(this.messages)
+    } catch (err) {
+      // 프로토콜 위반(버전 불일치 등)은 SidecarProtocolError로 던져진다 —
+      // finalize는 void로 호출되므로 여기서 잡지 않으면 unhandled rejection이 된다.
+      if (err instanceof SidecarProtocolError) {
+        cb.onError('capture-failed', err.message)
+        return
+      }
+      throw err
+    }
     if (!outcome.ok) {
       cb.onError(outcome.error.code, outcome.error.message)
       return
